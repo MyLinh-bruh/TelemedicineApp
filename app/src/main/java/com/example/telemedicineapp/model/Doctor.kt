@@ -8,5 +8,6 @@ data class Doctor(
     val imageUrl: String,
     val description: String,
     val address: String,
-    val hospitalName: String
+    val hospitalName: String,
+    val colorHex: Long
 )
