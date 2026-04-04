@@ -4,14 +4,16 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
-import com.example.telemedicineapp.model.Doctor
 import com.example.telemedicineapp.model.Role
 import com.example.telemedicineapp.presentation.screens.auth.LoginScreen
 import com.example.telemedicineapp.presentation.screen.auth.RegisterScreen
+import com.example.telemedicineapp.presentation.screen.doctor.DoctorViewModel // Đảm bảo import đúng package của ViewModel
 import com.example.telemedicineapp.ui.screens.AdminHomeScreen
 import com.example.telemedicineapp.ui.screens.DoctorListScreen
 import com.example.telemedicineapp.ui.theme.TelemedicineAppTheme
@@ -30,16 +32,11 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-fun AppNavigation() {
+fun AppNavigation(doctorViewModel: DoctorViewModel = hiltViewModel()) {
     val navController = rememberNavController()
 
-    // Dữ liệu bác sĩ dùng chung
-    val allDoctors = remember {
-        listOf(
-            Doctor(1, "BS. Lê Mạnh Hùng", "Tim mạch", 4.9, "", "Mô tả...", "Đà Nẵng", "BV Đa khoa", 0xFF3B82F6L),
-            Doctor(2, "BS. Phan Mỹ Linh", "Nhi khoa", 4.8, "", "Mô tả...", "Đà Nẵng", "BV Phụ sản Nhi", 0xFFF43F5EL)
-        )
-    }
+    // 🌟 Lấy dữ liệu danh sách Bác sĩ Realtime từ Firebase thông qua ViewModel
+    val allDoctors by doctorViewModel.doctors.collectAsState()
 
     NavHost(
         navController = navController,
@@ -51,7 +48,7 @@ fun AppNavigation() {
                 onLoginSuccess = { role ->
                     val destination = when (role) {
                         Role.ADMIN -> "admin_dashboard"
-                        Role.PATIENT -> "patient_home" // Đường dẫn này phải khớp với composable bên dưới
+                        Role.PATIENT -> "patient_home"
                         Role.DOCTOR -> "doctor_dashboard"
                     }
                     navController.navigate(destination) {
@@ -70,12 +67,12 @@ fun AppNavigation() {
             )
         }
 
-        // 3. MÀN HÌNH ADMIN (Đã gộp và sửa tên route)
+        // 3. MÀN HÌNH ADMIN
         composable("admin_dashboard") {
             AdminHomeScreen(
-                allDoctors = allDoctors,
+                allDoctors = allDoctors, // Truyền List<User> thật từ Firebase
                 onDoctorClick = { doctor ->
-                    // Logic xem chi tiết bác sĩ
+                    // Logic xem chi tiết bác sĩ dành cho Admin (nếu có)
                 },
                 onLogout = {
                     navController.navigate("login_screen") {
@@ -85,12 +82,13 @@ fun AppNavigation() {
             )
         }
 
-        // 4. MÀN HÌNH BỆNH NHÂN (FIX LỖI: Trước đó bạn bị thiếu phần này nên bị Out)
+        // 4. MÀN HÌNH BỆNH NHÂN
         composable("patient_home") {
             DoctorListScreen(
-                allDoctors = allDoctors,
+                allDoctors = allDoctors, // Truyền List<User> thật từ Firebase
                 onDoctorClick = { doctor ->
-                    // Logic xem chi tiết bác sĩ
+                    // Logic chuyển sang màn hình DoctorDetailScreen
+                    // Ví dụ: navController.navigate("doctor_detail/${doctor.id}")
                 },
                 onLogout = {
                     navController.navigate("login_screen") {
@@ -100,9 +98,9 @@ fun AppNavigation() {
             )
         }
 
-        // 5. MÀN HÌNH BÁC SĨ (Dự phòng)
+        // 5. MÀN HÌNH BÁC SĨ
         composable("doctor_dashboard") {
-            // Giao diện bác sĩ dán ở đây
+            // Giao diện chính của Bác sĩ sau khi đăng nhập sẽ hiển thị ở đây
         }
     }
 }
