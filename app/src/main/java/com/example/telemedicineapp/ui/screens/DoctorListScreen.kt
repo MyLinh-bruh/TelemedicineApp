@@ -26,7 +26,9 @@ import kotlinx.coroutines.delay
 @Composable
 fun DoctorListScreen(
     onDoctorClick: (Doctor) -> Unit,
-    onLogout: () -> Unit // Thêm callback để xử lý đăng xuất
+    onLogout: () -> Unit, // Thêm callback để xử lý đăng xuất
+    allDoctors: List<Doctor>
+
 ) {
     var searchQuery by remember { mutableStateOf("") }
     var selectedFilter by remember { mutableStateOf("Tất cả") }
