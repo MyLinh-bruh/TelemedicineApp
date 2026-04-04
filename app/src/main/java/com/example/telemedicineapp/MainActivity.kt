@@ -119,10 +119,8 @@ fun AppNavigation(doctorViewModel: DoctorViewModel = hiltViewModel()) {
                 )
             }
         }
-
         // 6. MÀN HÌNH BÁC SĨ (Dự phòng)
         composable("doctor_dashboard") {
-            // Giao diện chính của Bác sĩ sau khi đăng nhập
         }
     }
 }

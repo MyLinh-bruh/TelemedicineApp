@@ -111,9 +111,7 @@ fun DoctorListScreen(
             }
         }
 
-        // LOADING / DATA
         if (allDoctors.isEmpty()) {
-            // 👉 khi chưa load xong Firebase
             DoctorShimmer()
         } else {
             LazyColumn(
