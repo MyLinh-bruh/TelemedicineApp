@@ -1,0 +1,88 @@
+package com.example.telemedicineapp.ui.screens
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material3.*
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.example.telemedicineapp.model.Doctor
+
+@Composable
+fun DoctorDetailScreen(doctor: Doctor, onBack: () -> Unit) {
+    Box(modifier = Modifier.fillMaxSize().background(Color.White)) {
+        Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+            // Banner
+            Box(modifier = Modifier.fillMaxWidth().height(220.dp).background(Color(0xFF2563EB)), contentAlignment = Alignment.Center) {
+                Text("DOCTOR", color = Color.White.copy(alpha = 0.1f), fontSize = 80.sp, fontWeight = FontWeight.Black)
+                IconButton(onClick = onBack, modifier = Modifier.align(Alignment.TopStart).padding(top = 40.dp, start = 16.dp).background(Color.White.copy(alpha = 0.2f), RoundedCornerShape(12.dp))) {
+                    Icon(Icons.Default.ArrowBack, null, tint = Color.White)
+                }
+            }
+
+            Column(modifier = Modifier.padding(horizontal = 24.dp)) {
+                // Floating Avatar
+                Box(modifier = Modifier.offset(y = (-50).dp).size(100.dp).clip(RoundedCornerShape(35.dp)).background(Color.White).padding(4.dp)) {
+                    Box(modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(32.dp)).background(Color(doctor.colorHex)), contentAlignment = Alignment.Center) {
+                        Text(doctor.name.split(" ").last().take(1), color = Color.White, fontSize = 40.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
+
+                // Info Section
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                    Column {
+                        Text(doctor.name, fontSize = 24.sp, fontWeight = FontWeight.Bold)
+                        Text(doctor.specialty.uppercase(), color = Color(0xFF2563EB), fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                    }
+                    Surface(color = Color(0xFFFFF7ED), shape = RoundedCornerShape(8.dp)) {
+                        Text("⭐ ${doctor.rating}", modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp), color = Color(0xFFF59E0B), fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                    }
+                }
+
+                // Grid Stats
+                Row(modifier = Modifier.padding(vertical = 24.dp).fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    StatBox("Bệnh nhân", "1.2K+", Modifier.weight(1f))
+                    StatBox("Kinh nghiệm", "10 Năm", Modifier.weight(1f))
+                    StatBox("Phí khám", "300K", Modifier.weight(1f), Color(0xFF2563EB))
+                }
+
+                Text("🏥 ${doctor.hospitalName}", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                Text(doctor.address, color = Color.Gray, fontSize = 12.sp)
+
+                Spacer(modifier = Modifier.height(24.dp))
+                Text("Thông tin giới thiệu", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                Text(doctor.description, color = Color.Gray, fontSize = 12.sp, lineHeight = 20.sp)
+
+                Spacer(modifier = Modifier.height(120.dp))
+            }
+        }
+
+        // Bottom Button
+        Button(
+            onClick = {},
+            modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(24.dp).height(56.dp),
+            shape = RoundedCornerShape(20.dp),
+            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2563EB))
+        ) {
+            Text("Đặt lịch ngay", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+        }
+    }
+}
+
+@Composable
+fun StatBox(label: String, value: String, modifier: Modifier, valueColor: Color = Color(0xFF334155)) {
+    Column(modifier = modifier.background(Color(0xFFF8FAFC), RoundedCornerShape(16.dp)).padding(12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(label.uppercase(), fontSize = 9.sp, color = Color.Gray, fontWeight = FontWeight.Bold)
+        Text(value, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = valueColor)
+    }
+}
