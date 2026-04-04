@@ -10,10 +10,12 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.example.telemedicineapp.model.Role
 
 @Composable
 fun LoginScreen(
-    onLoginSuccess: () -> Unit,
+    onLoginSuccess: (Role) -> Unit,
+    onGoToRegister: () -> Unit,
     viewModel: AuthViewModel = hiltViewModel()
 ) {
     var email by remember { mutableStateOf("") }
@@ -21,11 +23,28 @@ fun LoginScreen(
 
     val isLoading by viewModel.isLoading.collectAsState()
     val loginSuccess by viewModel.loginSuccess.collectAsState()
+    val errorMessage by viewModel.errorMessage.collectAsState() // Lấy lỗi từ ViewModel
 
+    // Xử lý khi đăng nhập thành công
     LaunchedEffect(loginSuccess) {
-        if (loginSuccess) {
-            onLoginSuccess()
+        loginSuccess?.let { role ->
+            onLoginSuccess(role)
+            viewModel.resetLoginStatus()
         }
+    }
+
+    // --- HIỂN THỊ POPUP THÔNG BÁO LỖI ---
+    if (errorMessage != null) {
+        AlertDialog(
+            onDismissRequest = { viewModel.clearError() },
+            title = { Text("Đăng nhập thất bại", fontWeight = FontWeight.Bold) },
+            text = { Text(errorMessage!!) },
+            confirmButton = {
+                TextButton(onClick = { viewModel.clearError() }) {
+                    Text("ĐÃ HIỂU")
+                }
+            }
+        )
     }
 
     Column(
@@ -33,39 +52,50 @@ fun LoginScreen(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
-        Text("Telemedicine", fontSize = 28.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
-        Text("Đăng nhập để đặt lịch khám", fontSize = 16.sp)
+        Text("Telemedicine", fontSize = 32.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+        Text("Khám bệnh từ xa mọi lúc mọi nơi", fontSize = 14.sp)
 
-        Spacer(modifier = Modifier.height(32.dp))
+        Spacer(modifier = Modifier.height(40.dp))
 
         OutlinedTextField(
-            value = email,
-            onValueChange = { email = it },
-            label = { Text("Email / Số điện thoại") },
-            modifier = Modifier.fillMaxWidth()
+            value = email, onValueChange = { email = it },
+            label = { Text("Email / Tài khoản") },
+            modifier = Modifier.fillMaxWidth(),
+            enabled = !isLoading,
+            singleLine = true
         )
 
         Spacer(modifier = Modifier.height(16.dp))
 
         OutlinedTextField(
-            value = password,
-            onValueChange = { password = it },
+            value = password, onValueChange = { password = it },
             label = { Text("Mật khẩu") },
             visualTransformation = PasswordVisualTransformation(),
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier.fillMaxWidth(),
+            enabled = !isLoading,
+            singleLine = true
         )
 
-        Spacer(modifier = Modifier.height(24.dp))
+        Spacer(modifier = Modifier.height(32.dp))
 
         Button(
             onClick = { viewModel.login(email, password) },
-            modifier = Modifier.fillMaxWidth().height(50.dp),
+            modifier = Modifier.fillMaxWidth().height(55.dp),
             enabled = !isLoading
         ) {
             if (isLoading) {
-                CircularProgressIndicator(color = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.size(24.dp))
+                CircularProgressIndicator(modifier = Modifier.size(24.dp), color = MaterialTheme.colorScheme.onPrimary)
             } else {
                 Text("ĐĂNG NHẬP")
+            }
+        }
+
+        Spacer(modifier = Modifier.height(24.dp))
+
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("Bạn chưa có tài khoản? ")
+            TextButton(onClick = onGoToRegister) {
+                Text("Đăng ký ngay", fontWeight = FontWeight.Bold)
             }
         }
     }
