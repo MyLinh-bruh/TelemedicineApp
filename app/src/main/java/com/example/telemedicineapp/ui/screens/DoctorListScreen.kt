@@ -111,7 +111,6 @@ fun DoctorListScreen(
             }
         }
 
-        // LOADING / DATA
         if (allDoctors.isEmpty()) {
             DoctorShimmer()
         } else {
