@@ -1,5 +1,5 @@
 package com.example.telemedicineapp.ui.screens
-import androidx.compose.animation.*
+
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -14,12 +14,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.telemedicineapp.model.Doctor
+import com.example.telemedicineapp.model.User
 import com.example.telemedicineapp.ui.components.DoctorItem
+
 data class PendingRequest(
     val id: String,
     val name: String,
@@ -29,11 +29,12 @@ data class PendingRequest(
     val phone: String,
     val certId: String
 )
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AdminHomeScreen(
-    allDoctors: List<Doctor>,
-    onDoctorClick: (Doctor) -> Unit,
+    allDoctors: List<User>, // Đổi Doctor thành User
+    onDoctorClick: (User) -> Unit,
     onLogout: () -> Unit
 ) {
     var selectedTab by remember { mutableIntStateOf(0) }
@@ -43,30 +44,17 @@ fun AdminHomeScreen(
     var selectedSpecialty by remember { mutableStateOf("Tất cả") }
     var expandedLocation by remember { mutableStateOf(false) }
     var expandedSpecialty by remember { mutableStateOf(false) }
+
     val locations = listOf("Toàn quốc", "Hà Nội", "Đà Nẵng", "TP. HCM")
     val specialties = listOf("Tất cả", "Tim mạch", "Nhi khoa", "Da liễu")
+
     val requests = remember {
         listOf(
-            PendingRequest(
-                "1",
-                "BS. Nguyễn Văn An",
-                "Tim mạch",
-                "10 năm",
-                "BV Bạch Mai",
-                "0901234567",
-                "CCHN-123"
-            ),
-            PendingRequest(
-                "2",
-                "BS. Lê Thị Bình",
-                "Nhi khoa",
-                "8 năm",
-                "BV Nhi TW",
-                "0987654321",
-                "CCHN-456"
-            )
+            PendingRequest("1", "BS. Nguyễn Văn An", "Tim mạch", "10 năm", "BV Bạch Mai", "0901234567", "CCHN-123"),
+            PendingRequest("2", "BS. Lê Thị Bình", "Nhi khoa", "8 năm", "BV Nhi TW", "0987654321", "CCHN-456")
         )
     }
+
     val filteredDoctors = allDoctors.filter { doctor ->
         val matchLoc = selectedLocation == "Toàn quốc" || doctor.address.contains(selectedLocation)
         val matchSpec = selectedSpecialty == "Tất cả" || doctor.specialty == selectedSpecialty
@@ -85,18 +73,8 @@ fun AdminHomeScreen(
         },
         bottomBar = {
             NavigationBar(containerColor = Color.White) {
-                NavigationBarItem(
-                    selected = selectedTab == 0,
-                    onClick = { selectedTab = 0 },
-                    icon = { Icon(Icons.Default.Home, null) },
-                    label = { Text("Hệ thống") }
-                )
-                NavigationBarItem(
-                    selected = selectedTab == 1,
-                    onClick = { selectedTab = 1 },
-                    icon = { Icon(Icons.Default.CheckCircle, null) },
-                    label = { Text("Duyệt đơn") }
-                )
+                NavigationBarItem(selected = selectedTab == 0, onClick = { selectedTab = 0 }, icon = { Icon(Icons.Default.Home, null) }, label = { Text("Hệ thống") })
+                NavigationBarItem(selected = selectedTab == 1, onClick = { selectedTab = 1 }, icon = { Icon(Icons.Default.CheckCircle, null) }, label = { Text("Duyệt đơn") })
             }
         }
     ) { padding ->
@@ -104,7 +82,6 @@ fun AdminHomeScreen(
             if (selectedTab == 0) {
                 LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp)) {
                     item {
-
                         Spacer(Modifier.height(24.dp))
                         Text("Quản lý danh sách bác sĩ", fontSize = 18.sp, fontWeight = FontWeight.Bold)
                         Spacer(Modifier.height(12.dp))
@@ -143,6 +120,7 @@ fun AdminHomeScreen(
         }
     }
 }
+
 @Composable
 fun ApprovalListView(requests: List<PendingRequest>, onItemClick: (PendingRequest) -> Unit) {
     LazyColumn(modifier = Modifier.fillMaxSize().padding(16.dp)) {
@@ -165,6 +143,7 @@ fun ApprovalListView(requests: List<PendingRequest>, onItemClick: (PendingReques
         }
     }
 }
+
 @Composable
 fun AdminDetailOverlay(req: PendingRequest, onDismiss: () -> Unit) {
     Surface(modifier = Modifier.fillMaxSize(), color = Color.Black.copy(0.6f)) {
@@ -187,14 +166,16 @@ fun AdminDetailOverlay(req: PendingRequest, onDismiss: () -> Unit) {
         }
     }
 }
+
 @Composable
 fun DetailItem(label: String, value: String) {
     Column(Modifier.padding(vertical = 4.dp)) {
         Text(label, fontSize = 11.sp, color = Color.Gray)
         Text(value, fontSize = 14.sp, fontWeight = FontWeight.Medium)
-        Divider(thickness = 0.5.dp, color = Color.LightGray)
+        HorizontalDivider(thickness = 0.5.dp, color = Color.LightGray) // Cập nhật Divider thành HorizontalDivider cho bản Compose mới
     }
 }
+
 @Composable
 fun AdminFilterBox(modifier: Modifier, label: String, value: String, onClick: () -> Unit) {
     Surface(
