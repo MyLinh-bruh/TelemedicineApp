@@ -95,6 +95,7 @@ fun DoctorDetailScreen(doctor: User, onBack: () -> Unit) {
                             fontSize = 13.sp
                         )
                     }
+
                 }
 
                 Row(
