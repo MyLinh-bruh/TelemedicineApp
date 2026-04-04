@@ -73,4 +73,127 @@ fun AdminHomeScreen(
         val matchName = doctor.name.contains(searchQuery, ignoreCase = true)
         matchLoc && matchSpec && matchName
     }
+
+    Scaffold(
+        containerColor = Color(0xFFF8FAFC),
+        topBar = {
+            TopAppBar(
+                title = { Text("Admin Dashboard", fontWeight = FontWeight.Bold) },
+                actions = {
+                    IconButton(onClick = onLogout) {
+                        Icon(
+                            Icons.Default.ExitToApp,
+                            null,
+                            tint = Color.Red
+                        )
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.White)
+            )
+        },
+        bottomBar = {
+            NavigationBar(containerColor = Color.White) {
+                NavigationBarItem(
+                    selected = selectedTab == 0,
+                    onClick = { selectedTab = 0 },
+                    icon = { Icon(Icons.Default.Home, null) },
+                    label = { Text("Hệ thống") }
+                )
+                NavigationBarItem(
+                    selected = selectedTab == 1,
+                    onClick = { selectedTab = 1 },
+                    icon = { Icon(Icons.Default.CheckCircle, null) },
+                    label = { Text("Duyệt đơn") }
+                )
+            }
+        }
+    ) { padding ->
+        Box(modifier = Modifier.padding(padding)) {
+            if (selectedTab == 0) {
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(16.dp)
+                ) {
+                    item {
+
+                        Spacer(Modifier.height(24.dp))
+                        Text(
+                            "Quản lý danh sách bác sĩ",
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Spacer(Modifier.height(12.dp))
+                        OutlinedTextField(
+                            value = searchQuery,
+                            onValueChange = { searchQuery = it },
+                            modifier = Modifier.fillMaxWidth(),
+                            placeholder = { Text("Tìm tên bác sĩ...", fontSize = 14.sp) },
+                            leadingIcon = { Icon(Icons.Default.Search, null) },
+                            shape = RoundedCornerShape(12.dp),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedContainerColor = Color.White,
+                                unfocusedContainerColor = Color.White
+                            ),
+                            singleLine = true
+                        )
+
+                        Spacer(Modifier.height(16.dp))
+                    }
+                    items(filteredDoctors) { doctor ->
+                        DoctorItem(doctor, onClick = { onDoctorClick(doctor) })
+                        Spacer(Modifier.height(8.dp))
+                    }
+                }
+            }
+
+            DropdownMenu(
+                expanded = expandedLocation,
+                onDismissRequest = { expandedLocation = false }) {
+                locations.forEach { loc ->
+                    DropdownMenuItem(
+                        text = { Text(loc) },
+                        onClick = { selectedLocation = loc; expandedLocation = false })
+                }
+            }
+            DropdownMenu(
+                expanded = expandedSpecialty,
+                onDismissRequest = { expandedSpecialty = false }) {
+                specialties.forEach { spec ->
+                    DropdownMenuItem(
+                        text = { Text(spec) },
+                        onClick = { selectedSpecialty = spec; expandedSpecialty = false })
+                }
+            }
+        }
+    }
+    @Composable
+    fun ApprovalListView(requests: List<PendingRequest>, onItemClick: (PendingRequest) -> Unit) {
+        LazyColumn(modifier = Modifier.fillMaxSize().padding(16.dp)) {
+            item {
+                Text("Đơn đăng ký mới", fontSize = 20.sp, fontWeight = FontWeight.Bold); Spacer(
+                Modifier.height(16.dp)
+            )
+            }
+            items(requests) { req ->
+                Card(
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp)
+                        .clickable { onItemClick(req) },
+                    colors = CardDefaults.cardColors(containerColor = Color.White)
+                ) {
+                    Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Box(
+                            Modifier.size(40.dp).background(Color(0xFFFFEBEE), CircleShape),
+                            contentAlignment = Alignment.Center
+                        ) { Icon(Icons.Default.Person, null, tint = Color.Red) }
+                        Spacer(Modifier.width(12.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text(req.name, fontWeight = FontWeight.Bold)
+                            Text(req.specialty, fontSize = 12.sp, color = Color.Gray)
+                        }
+                        Icon(Icons.Default.KeyboardArrowRight, null, tint = Color.LightGray)
+                    }
+                }
+            }
+        }
+    }
 }
