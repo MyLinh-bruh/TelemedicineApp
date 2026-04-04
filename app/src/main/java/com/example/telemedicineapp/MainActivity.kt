@@ -10,6 +10,7 @@ import androidx.navigation.compose.rememberNavController
 import com.example.telemedicineapp.model.Role
 import com.example.telemedicineapp.presentation.screens.auth.LoginScreen
 import com.example.telemedicineapp.presentation.screen.auth.RegisterScreen
+import com.example.telemedicineapp.ui.screens.AdminHomeScreen
 import com.example.telemedicineapp.ui.screens.DoctorListScreen // Import màn hình của Thảo
 import com.example.telemedicineapp.ui.theme.TelemedicineAppTheme
 import dagger.hilt.android.AndroidEntryPoint
@@ -81,9 +82,19 @@ fun AppNavigation() {
 
         // 4. CÁC MÀN HÌNH CHỨC NĂNG KHÁC (ADMIN/DOCTOR)
         composable("admin_dashboard") {
-            // Sau này dán màn hình Admin của bạn vào đây
+            AdminHomeScreen(
+                allDoctors = emptyList(), // Sau này bạn truyền danh sách bác sĩ từ ViewModel vào đây
+                onDoctorClick = { doctor ->
+                    navController.navigate("doctor_detail/${doctor.id}")
+                },
+                onLogout = {
+                    // Thoát về màn hình đăng nhập
+                    navController.navigate("login_screen") {
+                        popUpTo("admin_dashboard") { inclusive = true }
+                    }
+                }
+            )
         }
-
         composable("doctor_dashboard") {
             // Sau này dán màn hình Bác sĩ của bạn vào đây
         }
