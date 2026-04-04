@@ -13,8 +13,9 @@ import androidx.navigation.compose.rememberNavController
 import com.example.telemedicineapp.model.Role
 import com.example.telemedicineapp.presentation.screens.auth.LoginScreen
 import com.example.telemedicineapp.presentation.screen.auth.RegisterScreen
-import com.example.telemedicineapp.presentation.screen.doctor.DoctorViewModel // Đảm bảo import đúng package của ViewModel
+import com.example.telemedicineapp.presentation.screen.doctor.DoctorViewModel
 import com.example.telemedicineapp.ui.screens.AdminHomeScreen
+import com.example.telemedicineapp.ui.screens.DoctorDetailScreen // Nhớ import màn hình này
 import com.example.telemedicineapp.ui.screens.DoctorListScreen
 import com.example.telemedicineapp.ui.theme.TelemedicineAppTheme
 import dagger.hilt.android.AndroidEntryPoint
@@ -35,7 +36,7 @@ class MainActivity : ComponentActivity() {
 fun AppNavigation(doctorViewModel: DoctorViewModel = hiltViewModel()) {
     val navController = rememberNavController()
 
-    // 🌟 Lấy dữ liệu danh sách Bác sĩ Realtime từ Firebase thông qua ViewModel
+    // Lấy danh sách Bác sĩ Realtime từ Firebase
     val allDoctors by doctorViewModel.doctors.collectAsState()
 
     NavHost(
@@ -70,9 +71,10 @@ fun AppNavigation(doctorViewModel: DoctorViewModel = hiltViewModel()) {
         // 3. MÀN HÌNH ADMIN
         composable("admin_dashboard") {
             AdminHomeScreen(
-                allDoctors = allDoctors, // Truyền List<User> thật từ Firebase
+                allDoctors = allDoctors,
                 onDoctorClick = { doctor ->
-                    // Logic xem chi tiết bác sĩ dành cho Admin (nếu có)
+                    // Nếu Admin bấm vào bác sĩ, cũng có thể chuyển sang trang chi tiết
+                    navController.navigate("doctor_detail/${doctor.id}")
                 },
                 onLogout = {
                     navController.navigate("login_screen") {
@@ -82,13 +84,13 @@ fun AppNavigation(doctorViewModel: DoctorViewModel = hiltViewModel()) {
             )
         }
 
-        // 4. MÀN HÌNH BỆNH NHÂN
+        // 4. MÀN HÌNH BỆNH NHÂN (DANH SÁCH BÁC SĨ)
         composable("patient_home") {
             DoctorListScreen(
-                allDoctors = allDoctors, // Truyền List<User> thật từ Firebase
+                allDoctors = allDoctors,
                 onDoctorClick = { doctor ->
-                    // Logic chuyển sang màn hình DoctorDetailScreen
-                    // Ví dụ: navController.navigate("doctor_detail/${doctor.id}")
+                    // 🌟 KHI BẤM VÀO BÁC SĨ, CHUYỂN HƯỚNG VÀ TRUYỀN ID CỦA BÁC SĨ ĐÓ
+                    navController.navigate("doctor_detail/${doctor.id}")
                 },
                 onLogout = {
                     navController.navigate("login_screen") {
@@ -98,9 +100,29 @@ fun AppNavigation(doctorViewModel: DoctorViewModel = hiltViewModel()) {
             )
         }
 
-        // 5. MÀN HÌNH BÁC SĨ
+        // 5. MÀN HÌNH CHI TIẾT BÁC SĨ (MỚI THÊM)
+        composable("doctor_detail/{doctorId}") { backStackEntry ->
+            // Lấy ID bác sĩ từ đường dẫn (Route)
+            val doctorId = backStackEntry.arguments?.getString("doctorId")
+
+            // Tìm bác sĩ trong danh sách allDoctors có ID khớp với ID trên đường dẫn
+            val selectedDoctor = allDoctors.find { it.id == doctorId }
+
+            // Nếu tìm thấy bác sĩ thì hiển thị màn hình chi tiết
+            if (selectedDoctor != null) {
+                DoctorDetailScreen(
+                    doctor = selectedDoctor,
+                    onBack = {
+                        // Nút quay lại: Rút màn hình hiện tại ra khỏi ngăn xếp (về lại danh sách)
+                        navController.popBackStack()
+                    }
+                )
+            }
+        }
+
+        // 6. MÀN HÌNH BÁC SĨ (Dự phòng)
         composable("doctor_dashboard") {
-            // Giao diện chính của Bác sĩ sau khi đăng nhập sẽ hiển thị ở đây
+            // Giao diện chính của Bác sĩ sau khi đăng nhập
         }
     }
 }
