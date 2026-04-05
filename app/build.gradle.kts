@@ -87,4 +87,6 @@ dependencies {
     // 6. Coroutines (Xử lý bất đồng bộ)
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.8.0")
+
+    implementation("com.google.firebase:firebase-auth-ktx:22.3.1")
 }

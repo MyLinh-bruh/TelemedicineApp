@@ -22,25 +22,27 @@ class AppointmentViewModel @Inject constructor(
 
     private val db = FirebaseFirestore.getInstance()
 
-    // 1. Trạng thái tiến trình đặt lịch (Idle/Loading/Success/Error)
+    // 1. Trạng thái tiến trình đặt lịch
     private val _bookingState = MutableStateFlow<BookingState>(BookingState.Idle)
     val bookingState: StateFlow<BookingState> = _bookingState
 
-    // 2. Lịch rảnh của bác sĩ (Lấy từ DoctorSchedules)
+    // 2. Lịch rảnh của bác sĩ
     private val _doctorSchedule = MutableStateFlow<DoctorSchedule?>(null)
     val doctorSchedule: StateFlow<DoctorSchedule?> = _doctorSchedule
 
-    // 3. Danh sách các Slot đã có người đặt (Lấy từ Appointments)
+    // 3. Danh sách các Slot đã có người đặt
     private val _bookedSlots = MutableStateFlow<List<String>>(emptyList())
     val bookedSlots: StateFlow<List<String>> = _bookedSlots
+
+    // 🌟 Biến lưu ID lịch hẹn đang xử lý thanh toán
+    private var currentAppointmentId: String? = null
 
     fun getSchedulesAndAppointments(doctorId: String, date: String) {
         viewModelScope.launch {
             val localDate = java.time.LocalDate.parse(date)
-            val dayOfWeek = localDate.dayOfWeek.value // 1 (Thứ 2) -> 7 (CN)
+            val dayOfWeek = localDate.dayOfWeek.value
 
             try {
-                // Bước 1: Tìm lịch "Sửa đổi/Bận" (DoctorSchedules)
                 val specificSnapshot = db.collection("DoctorSchedules")
                     .whereEqualTo("doctorId", doctorId)
                     .whereEqualTo("date", date)
@@ -49,7 +51,6 @@ class AppointmentViewModel @Inject constructor(
                 if (!specificSnapshot.isEmpty) {
                     _doctorSchedule.value = specificSnapshot.documents[0].toObject(DoctorSchedule::class.java)
                 } else {
-                    // Bước 2: Tìm lịch "Mặc định của Bác sĩ" (DoctorDefaults)
                     val doctorDefaultSnapshot = db.collection("DoctorDefaults")
                         .whereEqualTo("doctorId", doctorId)
                         .whereEqualTo("dayOfWeek", dayOfWeek)
@@ -63,7 +64,6 @@ class AppointmentViewModel @Inject constructor(
                             afternoonSlots = docData.get("afternoonSlots") as List<String>
                         )
                     } else {
-                        // Bước 3: Lấy "Mặc định của App" (Hardcode hoặc từ config)
                         _doctorSchedule.value = DoctorSchedule(
                             date = date,
                             morningSlots = listOf("08:00 - 09:00", "09:00 - 10:00", "10:00 - 11:00"),
@@ -71,40 +71,15 @@ class AppointmentViewModel @Inject constructor(
                         )
                     }
                 }
-
-                // Bước 4: Lấy các lịch đã được bệnh nhân đặt để hiện màu đỏ
                 fetchBookedSlots(doctorId, date)
-
             } catch (e: Exception) {
                 _doctorSchedule.value = null
             }
         }
     }
 
-    private suspend fun fetchDoctorSchedule(doctorId: String, date: String) {
-        try {
-            val snapshot = db.collection("DoctorSchedules")
-                .whereEqualTo("doctorId", doctorId)
-                .whereEqualTo("date", date)
-                .get()
-                .await()
-
-            if (!snapshot.isEmpty) {
-                val schedule = snapshot.documents[0].toObject(DoctorSchedule::class.java)
-                _doctorSchedule.value = schedule
-            } else {
-                // Nếu không có cấu hình, trả về object rỗng để UI không bị lỗi
-                _doctorSchedule.value = DoctorSchedule(date = date, doctorId = doctorId)
-            }
-        } catch (e: Exception) {
-            Log.e("AppointmentVM", "Lỗi fetchDoctorSchedule: ${e.message}")
-            _doctorSchedule.value = null
-        }
-    }
-
     private suspend fun fetchBookedSlots(doctorId: String, date: String) {
         try {
-            // Tạo khoảng thời gian từ đầu ngày đến cuối ngày theo chuẩn ISO-8601
             val startOfDay = "${date}T00:00:00Z"
             val endOfDay = "${date}T23:59:59Z"
 
@@ -117,7 +92,6 @@ class AppointmentViewModel @Inject constructor(
 
             val booked = snapshot.documents.mapNotNull { doc ->
                 val utcTime = doc.getString("dateTimeUtc") ?: return@mapNotNull null
-                // Trạng thái đơn có thể là PENDING hoặc CONFIRMED đều coi là đã giữ chỗ
                 val status = doc.getString("status") ?: ""
                 if (status != "CANCELLED") {
                     TimeUtils.extractSlotFromUtc(utcTime)
@@ -127,18 +101,16 @@ class AppointmentViewModel @Inject constructor(
             }
             _bookedSlots.value = booked
         } catch (e: Exception) {
-            Log.e("AppointmentVM", "Lỗi fetchBookedSlots: ${e.message}")
             _bookedSlots.value = emptyList()
         }
     }
 
-    // Hàm thực hiện lưu lịch hẹn mới
+    // 🌟 Hàm bookAppointment duy nhất: Kiểm tra trùng và lưu ID
     fun bookAppointment(appointment: Appointment) {
         viewModelScope.launch {
             _bookingState.value = BookingState.Loading
-
             try {
-                // 1. Kiểm tra "tươi" (Fresh Check) trên server xem slot này còn trống không
+                // 1. Kiểm tra conflict (Fresh Check)
                 val checkSnapshot = db.collection("Appointments")
                     .whereEqualTo("doctorId", appointment.doctorId)
                     .whereEqualTo("dateTimeUtc", appointment.dateTimeUtc)
@@ -146,25 +118,48 @@ class AppointmentViewModel @Inject constructor(
                     .get().await()
 
                 if (!checkSnapshot.isEmpty) {
-                    // 409 Conflict: Đã có người đặt rồi!
                     _bookingState.value = BookingState.Conflict
                     return@launch
                 }
 
-                // 2. Nếu trống thì mới tiến hành đặt
-                val success = appointmentRepository.createAppointment(appointment)
-                if (success) {
-                    _bookingState.value = BookingState.Success
-                } else {
-                    _bookingState.value = BookingState.Error("Lỗi kết nối!")
-                }
+                // 2. Lưu trực tiếp qua Firestore để lấy Document ID ngay lập tức
+                val docRef = db.collection("Appointments").add(appointment).await()
+                currentAppointmentId = docRef.id
+
+                _bookingState.value = BookingState.Success
             } catch (e: Exception) {
                 _bookingState.value = BookingState.Error(e.message ?: "Lỗi không xác định")
             }
         }
     }
 
-    // Reset lại trạng thái sau khi hiện thông báo
+    // 🌟 Hàm cập nhật trạng thái sau khi thanh toán
+    fun confirmAppointmentStatus(status: String) {
+        val id = currentAppointmentId ?: return
+        viewModelScope.launch {
+            try {
+                db.collection("Appointments").document(id)
+                    .update("status", status).await()
+                currentAppointmentId = null // Xong việc thì reset ID
+            } catch (e: Exception) {
+                Log.e("AppointmentVM", "Lỗi confirm: ${e.message}")
+            }
+        }
+    }
+
+    // 🌟 Hàm hủy nếu người dùng thoát thanh toán
+    fun cancelPendingAppointment() {
+        val id = currentAppointmentId ?: return
+        viewModelScope.launch {
+            try {
+                db.collection("Appointments").document(id).delete().await()
+                currentAppointmentId = null
+            } catch (e: Exception) {
+                Log.e("AppointmentVM", "Lỗi cancel: ${e.message}")
+            }
+        }
+    }
+
     fun resetState() {
         _bookingState.value = BookingState.Idle
     }

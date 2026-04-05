@@ -7,6 +7,9 @@ import com.example.telemedicineapp.data.AuthRepository
 import com.example.telemedicineapp.data.RegisterResult
 import com.example.telemedicineapp.model.DoctorStatus
 import com.example.telemedicineapp.model.Role
+import com.example.telemedicineapp.model.User // 🌟 Cần thêm import này
+import com.google.firebase.auth.FirebaseAuth // 🌟 Cần thêm import này
+import com.google.firebase.firestore.FirebaseFirestore // 🌟 Cần thêm import này
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -20,6 +23,9 @@ class AuthViewModel @Inject constructor(
     private val authRepo: AuthRepository
 ) : ViewModel() {
 
+    private val auth = FirebaseAuth.getInstance()
+    private val db = FirebaseFirestore.getInstance()
+
     private val _isLoading = MutableStateFlow(false)
     val isLoading: StateFlow<Boolean> = _isLoading
 
@@ -29,7 +35,26 @@ class AuthViewModel @Inject constructor(
     private val _errorMessage = MutableStateFlow<String?>(null)
     val errorMessage: StateFlow<String?> = _errorMessage
 
-    // --- 1. LOGIC ĐĂNG NHẬP ---
+    // 🌟 1. Thông tin người dùng hiện tại (Dùng cho BookingScreen)
+    private val _currentUser = MutableStateFlow<User?>(null)
+    val currentUser: StateFlow<User?> = _currentUser
+
+    init {
+        // 🌟 Tự động lắng nghe trạng thái đăng nhập và lấy User Profile
+        auth.addAuthStateListener { firebaseAuth ->
+            val uid = firebaseAuth.currentUser?.uid
+            if (uid != null) {
+                // Lắng nghe Realtime từ Firestore
+                db.collection("Users").document(uid).addSnapshotListener { snapshot, _ ->
+                    _currentUser.value = snapshot?.toObject(User::class.java)?.copy(id = snapshot.id)
+                }
+            } else {
+                _currentUser.value = null
+            }
+        }
+    }
+
+    // --- 2. LOGIC ĐĂNG NHẬP ---
     fun login(emailInput: String, passInput: String) {
         viewModelScope.launch {
             _isLoading.value = true
@@ -62,37 +87,32 @@ class AuthViewModel @Inject constructor(
         }
     }
 
-    // --- 2. LOGIC ĐĂNG KÝ ---
+    // --- 3. LOGIC ĐĂNG KÝ ---
     fun register(emailInput: String, passInput: String) {
         viewModelScope.launch {
             _isLoading.value = true
             _errorMessage.value = null
 
-            // Nhận kết quả RegisterResult từ Repository
             val result = authRepo.register(emailInput, passInput)
 
             when (result) {
                 RegisterResult.SUCCESS -> {
-                    // Đăng ký thành công
                     val fakeToken = "Bearer_${UUID.randomUUID()}"
                     tokenManager.saveSession(fakeToken, Role.PATIENT.name, "NONE")
                     _loginSuccess.value = Role.PATIENT
                 }
                 RegisterResult.EMAIL_EXISTS -> {
-                    // Đẩy thông báo ra UI bằng biến errorMessage có sẵn
                     _errorMessage.value = "Email đã tồn tại. Vui lòng sử dụng một email khác!"
                 }
                 RegisterResult.ERROR -> {
-                    // Lỗi kết nối hoặc lỗi từ Firebase
                     _errorMessage.value = "Đã xảy ra lỗi hệ thống. Vui lòng thử lại sau!"
                 }
             }
-
             _isLoading.value = false
         }
     }
 
-    // --- 3. CÁC HÀM HỖ TRỢ ---
+    // --- 4. CÁC HÀM HỖ TRỢ ---
     fun showError(message: String) {
         _errorMessage.value = message
     }
@@ -106,7 +126,9 @@ class AuthViewModel @Inject constructor(
     }
 
     fun logout() {
+        auth.signOut() // Đăng xuất khỏi Firebase
         tokenManager.clearSession()
         _loginSuccess.value = null
+        _currentUser.value = null
     }
 }
