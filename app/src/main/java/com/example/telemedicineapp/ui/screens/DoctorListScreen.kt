@@ -22,6 +22,7 @@ import com.example.telemedicineapp.ui.components.DoctorItem
 import com.example.telemedicineapp.ui.components.DoctorShimmer
 import androidx.compose.material.icons.filled.MedicalServices
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Event // Dùng Event thay cho DateRange để tránh lỗi thư viện
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -31,6 +32,7 @@ fun DoctorListScreen(
     allDoctors: List<User>,
     onRegisterDoctorClick: () -> Unit,
     onProfileClick: () -> Unit,
+    onHistoryClick: () -> Unit, // Callback để điều hướng lịch sử
 ) {
     var searchQuery by remember { mutableStateOf("") }
     var selectedSpecialty by remember { mutableStateOf("Tất cả chuyên khoa") }
@@ -65,7 +67,7 @@ fun DoctorListScreen(
                     Text("Tìm chuyên gia y tế phù hợp", fontSize = 12.sp, color = Color.Gray)
                 }
 
-                // --- MENU 3 GẠCH ---
+                // --- MENU CHÍNH (3 GẠCH) ---
                 Box {
                     var showMenu by remember { mutableStateOf(false) }
 
@@ -88,12 +90,25 @@ fun DoctorListScreen(
                             leadingIcon = { Icon(Icons.Default.Person, null, modifier = Modifier.size(20.dp)) },
                             onClick = { showMenu = false; onProfileClick() }
                         )
+
+                        // NÚT LỊCH SỬ LỊCH HẸN
+                        DropdownMenuItem(
+                            text = { Text("Lịch hẹn của tôi", fontSize = 14.sp) },
+                            leadingIcon = { Icon(Icons.Default.Event, null, modifier = Modifier.size(20.dp)) },
+                            onClick = {
+                                showMenu = false
+                                onHistoryClick()
+                            }
+                        )
+
                         DropdownMenuItem(
                             text = { Text("Đăng ký làm bác sĩ", fontSize = 14.sp) },
                             leadingIcon = { Icon(Icons.Default.MedicalServices, null, modifier = Modifier.size(20.dp)) },
                             onClick = { showMenu = false; onRegisterDoctorClick() }
                         )
+
                         HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp), thickness = 0.5.dp)
+
                         DropdownMenuItem(
                             text = { Text("Đăng xuất", fontSize = 14.sp, color = Color.Red) },
                             leadingIcon = { Icon(Icons.Default.ExitToApp, null, tint = Color.Red, modifier = Modifier.size(20.dp)) },
@@ -124,7 +139,7 @@ fun DoctorListScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // BỘ LỌC DROPDOWN
+            // BỘ LỌC CHUYÊN KHOA & ĐỊA ĐIỂM
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
