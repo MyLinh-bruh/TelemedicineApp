@@ -1,15 +1,14 @@
 package com.example.telemedicineapp.presentation.screens.auth
 
+import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.telemedicineapp.core.TokenManager
 import com.example.telemedicineapp.data.AuthRepository
 import com.example.telemedicineapp.data.RegisterResult
-import com.example.telemedicineapp.model.DoctorStatus
 import com.example.telemedicineapp.model.Role
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import java.util.UUID
 import javax.inject.Inject
@@ -29,84 +28,114 @@ class AuthViewModel @Inject constructor(
     private val _errorMessage = MutableStateFlow<String?>(null)
     val errorMessage: StateFlow<String?> = _errorMessage
 
-    // --- 1. LOGIC ĐĂNG NHẬP ---
-    fun login(emailInput: String, passInput: String) {
-        viewModelScope.launch {
-            _isLoading.value = true
-            _errorMessage.value = null
+    private val _isWaitingApproval = MutableStateFlow(false)
+    val isWaitingApproval: StateFlow<Boolean> = _isWaitingApproval
 
-            val user = authRepo.login(emailInput, passInput)
+    private val _isApproved = MutableStateFlow(false)
+    val isApproved: StateFlow<Boolean> = _isApproved
 
-            if (user != null) {
-                val role = try {
-                    Role.valueOf(user.role.uppercase())
-                } catch (e: Exception) {
-                    Role.PATIENT
-                }
+    init {
+        // KHÔI PHỤC TRẠNG THÁI: Kiểm tra xem bộ nhớ máy có email nào đang treo không
+        val pendingEmail = tokenManager.getPendingEmail()
+        if (!pendingEmail.isNullOrEmpty()) {
+            _isWaitingApproval.value = true
+            startListeningStatus(pendingEmail)
+        }
+    }
 
-                val status = try {
-                    DoctorStatus.valueOf(user.doctorStatus.uppercase())
-                } catch (e: Exception) {
-                    DoctorStatus.NONE
-                }
-
-                val fakeToken = "Bearer_${UUID.randomUUID()}"
-                tokenManager.saveSession(fakeToken, role.name, status.name)
-
-                _loginSuccess.value = role
-            } else {
-                _errorMessage.value = "Tài khoản hoặc mật khẩu không chính xác. Vui lòng kiểm tra lại!"
+    // Hàm lắng nghe trạng thái từ Firebase
+    private fun startListeningStatus(email: String) {
+        authRepo.listenToDoctorStatus(email).onEach { status ->
+            if (status == "APPROVED") {
+                _isWaitingApproval.value = false
+                _isApproved.value = true
+                tokenManager.clearPendingEmail() // Duyệt xong thì xóa email chờ ở máy
             }
+        }.launchIn(viewModelScope)
+    }
 
+    // ĐĂNG KÝ BÁC SĨ
+    fun registerDoctorRequest(
+        name: String, email: String, pass: String,
+        specialty: String, hospitalName: String, certificateUri: Uri?
+    ) {
+        viewModelScope.launch {
+            if (certificateUri == null) {
+                _errorMessage.value = "Vui lòng chọn ảnh chứng chỉ!"
+                return@launch
+            }
+            _isLoading.value = true
+            val result = authRepo.registerDoctorRequest(name, email, pass, specialty, hospitalName, certificateUri)
+
+            if (result == RegisterResult.SUCCESS) {
+                // 1. Lưu email vào bộ nhớ máy ngay lập tức
+                tokenManager.savePendingEmail(email)
+                // 2. Hiện Popup chờ
+                _isWaitingApproval.value = true
+                // 3. Bắt đầu lắng nghe
+                startListeningStatus(email)
+            } else {
+                _errorMessage.value = "Email đã tồn tại hoặc lỗi hệ thống!"
+            }
             _isLoading.value = false
         }
     }
 
-    // --- 2. LOGIC ĐĂNG KÝ ---
+    // HÀM HỦY: Xóa sạch dữ liệu Firebase và bộ nhớ máy
+    fun cancelRegistration() {
+        val emailToDelete = tokenManager.getPendingEmail() ?: ""
+        if (emailToDelete.isEmpty()) {
+            _isWaitingApproval.value = false
+            return
+        }
+
+        viewModelScope.launch {
+            _isLoading.value = true
+            // Gọi Repo để xóa trên Firebase
+            val isDeleted = authRepo.deleteDoctorRequest(emailToDelete)
+            if (isDeleted) {
+                tokenManager.clearPendingEmail() // Xóa ở máy
+                _isWaitingApproval.value = false // Tắt Popup
+                _errorMessage.value = "Đã hủy yêu cầu và xóa sạch dữ liệu."
+            } else {
+                _errorMessage.value = "Lỗi khi xóa dữ liệu trên Server!"
+            }
+            _isLoading.value = false
+        }
+    }
+
+    // ĐĂNG NHẬP
+    fun login(email: String, pass: String) {
+        viewModelScope.launch {
+            _isLoading.value = true
+            val user = authRepo.login(email, pass)
+            if (user != null) {
+                if (user.role == "DOCTOR" && user.doctorStatus == "PENDING") {
+                    _errorMessage.value = "Tài khoản đang chờ duyệt!"
+                } else {
+                    tokenManager.saveSession("Token_${UUID.randomUUID()}", user.role, user.doctorStatus)
+                    _loginSuccess.value = Role.valueOf(user.role.uppercase())
+                }
+            } else _errorMessage.value = "Sai tài khoản hoặc mật khẩu!"
+            _isLoading.value = false
+        }
+    }
+
+    // ĐĂNG KÝ BỆNH NHÂN
     fun register(emailInput: String, passInput: String) {
         viewModelScope.launch {
             _isLoading.value = true
-            _errorMessage.value = null
-
-            // Nhận kết quả RegisterResult từ Repository
             val result = authRepo.register(emailInput, passInput)
-
-            when (result) {
-                RegisterResult.SUCCESS -> {
-                    // Đăng ký thành công
-                    val fakeToken = "Bearer_${UUID.randomUUID()}"
-                    tokenManager.saveSession(fakeToken, Role.PATIENT.name, "NONE")
-                    _loginSuccess.value = Role.PATIENT
-                }
-                RegisterResult.EMAIL_EXISTS -> {
-                    // Đẩy thông báo ra UI bằng biến errorMessage có sẵn
-                    _errorMessage.value = "Email đã tồn tại. Vui lòng sử dụng một email khác!"
-                }
-                RegisterResult.ERROR -> {
-                    // Lỗi kết nối hoặc lỗi từ Firebase
-                    _errorMessage.value = "Đã xảy ra lỗi hệ thống. Vui lòng thử lại sau!"
-                }
-            }
-
+            if (result == RegisterResult.SUCCESS) {
+                _errorMessage.value = "Đăng ký thành công! Mời bạn đăng nhập."
+            } else _errorMessage.value = "Email đã tồn tại!"
             _isLoading.value = false
         }
     }
 
-    // --- 3. CÁC HÀM HỖ TRỢ ---
-    fun showError(message: String) {
-        _errorMessage.value = message
-    }
-
-    fun clearError() {
-        _errorMessage.value = null
-    }
-
-    fun resetLoginStatus() {
-        _loginSuccess.value = null
-    }
-
-    fun logout() {
-        tokenManager.clearSession()
-        _loginSuccess.value = null
-    }
+    // CÁC HÀM HỖ TRỢ UI
+    fun showError(message: String) { _errorMessage.value = message }
+    fun clearError() { _errorMessage.value = null }
+    fun resetApprovalState() { _isWaitingApproval.value = false; _isApproved.value = false }
+    fun resetLoginStatus() { _loginSuccess.value = null }
 }
