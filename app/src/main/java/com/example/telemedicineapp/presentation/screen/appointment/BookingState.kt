@@ -4,5 +4,6 @@ sealed class BookingState {
     object Idle : BookingState()
     object Loading : BookingState()
     object Success : BookingState()
+    object Conflict : BookingState()
     data class Error(val message: String) : BookingState()
 }
