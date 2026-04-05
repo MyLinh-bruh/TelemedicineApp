@@ -49,11 +49,15 @@ fun BookingScreen(
     var selectedTimeSlot by remember { mutableStateOf<String?>(null) }
     var reason by remember { mutableStateOf("") }
 
+    // State quản lý hiển thị Dialog khi bị trùng lịch (Conflict - 409)
+    var showConflictDialog by remember { mutableStateOf(false) }
+
     // Gọi API lấy cả lịch rảnh và lịch đã đặt khi đổi ngày
     LaunchedEffect(selectedDate) {
         appointmentViewModel.getSchedulesAndAppointments(doctor.id, selectedDate.fullDate)
     }
 
+    // Xử lý kết quả đặt lịch và bắt lỗi Double-Booking
     LaunchedEffect(bookingState) {
         when (bookingState) {
             is BookingState.Success -> {
@@ -61,12 +65,40 @@ fun BookingScreen(
                 appointmentViewModel.resetState()
                 onBack()
             }
+            is BookingState.Conflict -> {
+                // 🌟 HIỂN THỊ DIALOG KHI CÓ NGƯỜI KHÁC VỪA ĐẶT MẤT SLOT NÀY
+                showConflictDialog = true
+            }
             is BookingState.Error -> {
                 Toast.makeText(context, (bookingState as BookingState.Error).message, Toast.LENGTH_SHORT).show()
                 appointmentViewModel.resetState()
             }
             else -> {}
         }
+    }
+
+    // GIAO DIỆN DIALOG THÔNG BÁO TRÙNG LỊCH (CONFLICT)
+    if (showConflictDialog) {
+        AlertDialog(
+            onDismissRequest = { showConflictDialog = false },
+            title = { Text("Rất tiếc!", fontWeight = FontWeight.Bold) },
+            text = { Text("Lịch này vừa có người đặt. Vui lòng chọn khung giờ khác!") },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showConflictDialog = false
+                        appointmentViewModel.resetState()
+                        // 🌟 TỰ ĐỘNG LOAD LẠI DỮ LIỆU MỚI NHẤT
+                        appointmentViewModel.getSchedulesAndAppointments(doctor.id, selectedDate.fullDate)
+                        selectedTimeSlot = null // Reset lại lựa chọn của user
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2563EB))
+                ) {
+                    Text("Đồng ý")
+                }
+            },
+            shape = RoundedCornerShape(16.dp)
+        )
     }
 
     Scaffold(
@@ -136,7 +168,7 @@ fun BookingScreen(
                     Text("Không có lịch hẹn", fontSize = 12.sp, color = Color.Gray, modifier = Modifier.padding(vertical = 8.dp))
                 } else {
                     TimeSlotGrid(
-                        slots = schedule!!.afternoonSlots, // Sửa lỗi: lấy đúng afternoonSlots
+                        slots = schedule!!.afternoonSlots,
                         selectedSlot = selectedTimeSlot,
                         bookedSlots = bookedSlots,
                         busySlots = schedule?.busySlots ?: emptyList()
@@ -150,6 +182,7 @@ fun BookingScreen(
                 )
             }
 
+            // LÝ DO KHÁM
             Column(modifier = Modifier.padding(16.dp)) {
                 OutlinedTextField(
                     value = reason,
@@ -165,6 +198,9 @@ fun BookingScreen(
                 )
             }
 
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // NÚT XÁC NHẬN
             Button(
                 onClick = {
                     if (selectedTimeSlot != null) {
@@ -177,7 +213,7 @@ fun BookingScreen(
                                 doctorName = doctor.name,
                                 dateTimeUtc = utcDateTime,
                                 reason = reason,
-                                status = "CONFIRMED" // Gửi trạng thái để tính vào bookedSlots lần sau
+                                status = "CONFIRMED"
                             )
                             appointmentViewModel.bookAppointment(newAppointment)
                         }
@@ -199,9 +235,12 @@ fun BookingScreen(
                     Text("Xác nhận đặt lịch", fontWeight = FontWeight.Bold, fontSize = 16.sp)
                 }
             }
+            Spacer(modifier = Modifier.height(32.dp))
         }
     }
 }
+
+// --- CÁC COMPONENT GIAO DIỆN (GIỮ NGUYÊN) ---
 
 @Composable
 fun TimeSlotGrid(
@@ -219,8 +258,8 @@ fun TimeSlotGrid(
                     TimeSlotItem(
                         slot = slot,
                         isSelected = selectedSlot == slot,
-                        isBooked = bookedSlots.contains(slot), // Kiểm tra nếu giờ này đã có người đặt
-                        isBusy = busySlots.contains(slot),     // Kiểm tra nếu bác sĩ đánh dấu bận
+                        isBooked = bookedSlots.contains(slot),
+                        isBusy = busySlots.contains(slot),
                         modifier = Modifier.weight(1f),
                         onClick = { onSlotSelected(slot) }
                     )
@@ -272,7 +311,6 @@ fun TimeSlotItem(
     }
 }
 
-// Giữ nguyên DoctorSimpleInfo, DateSelectorItem, và OtherDateButton từ bản trước
 @Composable
 fun DoctorSimpleInfo(doctor: User) {
     Surface(

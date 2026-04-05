@@ -136,11 +136,30 @@ class AppointmentViewModel @Inject constructor(
     fun bookAppointment(appointment: Appointment) {
         viewModelScope.launch {
             _bookingState.value = BookingState.Loading
-            val success = appointmentRepository.createAppointment(appointment)
-            if (success) {
-                _bookingState.value = BookingState.Success
-            } else {
-                _bookingState.value = BookingState.Error("Không thể đặt lịch. Vui lòng thử lại!")
+
+            try {
+                // 1. Kiểm tra "tươi" (Fresh Check) trên server xem slot này còn trống không
+                val checkSnapshot = db.collection("Appointments")
+                    .whereEqualTo("doctorId", appointment.doctorId)
+                    .whereEqualTo("dateTimeUtc", appointment.dateTimeUtc)
+                    .whereNotEqualTo("status", "CANCELLED")
+                    .get().await()
+
+                if (!checkSnapshot.isEmpty) {
+                    // 409 Conflict: Đã có người đặt rồi!
+                    _bookingState.value = BookingState.Conflict
+                    return@launch
+                }
+
+                // 2. Nếu trống thì mới tiến hành đặt
+                val success = appointmentRepository.createAppointment(appointment)
+                if (success) {
+                    _bookingState.value = BookingState.Success
+                } else {
+                    _bookingState.value = BookingState.Error("Lỗi kết nối!")
+                }
+            } catch (e: Exception) {
+                _bookingState.value = BookingState.Error(e.message ?: "Lỗi không xác định")
             }
         }
     }
