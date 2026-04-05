@@ -96,7 +96,6 @@ class AppointmentViewModel @Inject constructor(
                 val schedule = snapshot.documents[0].toObject(DoctorSchedule::class.java)
                 _doctorSchedule.value = schedule
             } else {
-                // Nếu không có cấu hình, trả về object rỗng để UI không bị lỗi
                 _doctorSchedule.value = DoctorSchedule(date = date, doctorId = doctorId)
             }
         } catch (e: Exception) {
@@ -107,28 +106,29 @@ class AppointmentViewModel @Inject constructor(
 
     private suspend fun fetchBookedSlots(doctorId: String, date: String) {
         try {
-            // Tạo khoảng thời gian từ đầu ngày đến cuối ngày theo chuẩn ISO-8601
             val startOfDay = "${date}T00:00:00Z"
             val endOfDay = "${date}T23:59:59Z"
 
+            // SỬA LỖI TẠI ĐÂY: Bỏ điều kiện lọc ngày của Firebase để tránh lỗi "Thiếu Index"
+            // Chỉ query theo doctorId, Firebase sẽ không đòi hỏi Composite Index nữa.
             val snapshot = db.collection("Appointments")
                 .whereEqualTo("doctorId", doctorId)
-                .whereGreaterThanOrEqualTo("dateTimeUtc", startOfDay)
-                .whereLessThanOrEqualTo("dateTimeUtc", endOfDay)
                 .get()
                 .await()
 
             val booked = snapshot.documents.mapNotNull { doc ->
                 val utcTime = doc.getString("dateTimeUtc") ?: return@mapNotNull null
-                // Trạng thái đơn có thể là PENDING hoặc CONFIRMED đều coi là đã giữ chỗ
                 val status = doc.getString("status") ?: ""
-                if (status != "CANCELLED") {
+
+                // LỌC BẰNG CODE KOTLIN: Nằm trong ngày đang chọn VÀ có trạng thái PENDING/PAID
+                if (utcTime >= startOfDay && utcTime <= endOfDay && (status == "PENDING" || status == "PAID")) {
                     TimeUtils.extractSlotFromUtc(utcTime)
                 } else {
                     null
                 }
             }
             _bookedSlots.value = booked
+            Log.d("AppointmentVM", "Danh sách slot bị giữ màu đỏ: $booked")
         } catch (e: Exception) {
             Log.e("AppointmentVM", "Lỗi fetchBookedSlots: ${e.message}")
             _bookedSlots.value = emptyList()
@@ -141,35 +141,31 @@ class AppointmentViewModel @Inject constructor(
             _bookingState.value = BookingState.Loading
 
             try {
-                // 1. Kiểm tra "tươi" (Fresh Check) trên server xem slot này còn trống không
+                // 1. Kiểm tra "tươi" (Fresh Check) xem slot này còn trống không
                 val checkSnapshot = db.collection("Appointments")
                     .whereEqualTo("doctorId", appointment.doctorId)
                     .whereEqualTo("dateTimeUtc", appointment.dateTimeUtc)
-                    .whereNotEqualTo("status", "CANCELLED")
+                    .whereIn("status", listOf<String>("PENDING", "PAID"))
                     .get().await()
 
                 if (!checkSnapshot.isEmpty) {
-                    // 409 Conflict: Đã có người đặt rồi!
                     _bookingState.value = BookingState.Conflict
                     return@launch
                 }
 
                 // 2. TẠO DOCUMENT MỚI TRƯỚC ĐỂ LẤY ID
                 val newDocRef = db.collection("Appointments").document()
-                val newId = newDocRef.id // Đây chính là chuỗi "2BtOk..." ngẫu nhiên
+                val newId = newDocRef.id
 
                 // 3. COPY ĐỐI TƯỢNG VÀ GẮN ID VÀO
-                // LƯU Ý: Nếu data class Appointment của bạn không khai báo biến id,
-                // hãy chắc chắn rằng nó có thuộc tính var id: String = ""
                 val appointmentToSave = appointment.copy(id = newId)
 
                 // 4. LƯU LẠI VÀO BIẾN TẠM ĐỂ DÙNG LÚC HỦY/THÀNH CÔNG
                 currentPendingAppointment = appointmentToSave
 
-                // 5. LƯU THẲNG LÊN FIREBASE BẰNG ĐÚNG CÁI ID ĐÓ (Không thông qua Repository)
+                // 5. LƯU THẲNG LÊN FIREBASE
                 newDocRef.set(appointmentToSave).await()
 
-                // Thông báo UI chuyển sang hiển thị QR/Thanh toán
                 _bookingState.value = BookingState.Success
 
             } catch (e: Exception) {
@@ -183,45 +179,38 @@ class AppointmentViewModel @Inject constructor(
     // CÁC HÀM XỬ LÝ THANH TOÁN (HỦY SLOT HOẶC CHỐT SLOT BẰNG DOCUMENT ID)
     // =====================================================================
 
-    // Gọi khi: Hết giờ thanh toán HOẶC Bệnh nhân bấm "Hủy giao dịch"
     fun cancelPendingAppointment() {
         val apptId = currentPendingAppointment?.id
 
-        if (apptId.isNullOrEmpty()) return // Không có ID thì dừng ngay
+        if (apptId.isNullOrEmpty()) return
 
         viewModelScope.launch {
             try {
-                // Chỉ thẳng mặt Document ID đó và XÓA khỏi Database để nhả Slot
                 db.collection("Appointments").document(apptId).delete().await()
-
                 Log.d("AppointmentVM", "Đã xóa thành công slot bị hủy: $apptId")
-                currentPendingAppointment = null // Reset biến tạm
+                currentPendingAppointment = null
             } catch (e: Exception) {
                 Log.e("AppointmentVM", "Lỗi khi xóa Slot: ${e.message}")
             }
         }
     }
 
-    // Gọi khi: Thanh toán thành công (Stripe hoặc QR Mocking)
     fun confirmAppointmentStatus(newStatus: String) {
         val apptId = currentPendingAppointment?.id
 
-        if (apptId.isNullOrEmpty()) return // Không có ID thì dừng ngay
+        if (apptId.isNullOrEmpty()) return
 
         viewModelScope.launch {
             try {
-                // Chỉ thẳng mặt Document ID đó và ĐỔI trạng thái (VD: Thành "PAID")
                 db.collection("Appointments").document(apptId).update("status", newStatus).await()
-
                 Log.d("AppointmentVM", "Đã cập nhật trạng thái thành $newStatus cho: $apptId")
-                currentPendingAppointment = null // Reset biến tạm
+                currentPendingAppointment = null
             } catch (e: Exception) {
                 Log.e("AppointmentVM", "Lỗi khi cập nhật trạng thái: ${e.message}")
             }
         }
     }
 
-    // Reset lại trạng thái UI sau khi hiện thông báo
     fun resetState() {
         _bookingState.value = BookingState.Idle
     }
