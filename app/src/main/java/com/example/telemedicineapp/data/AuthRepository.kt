@@ -9,6 +9,7 @@ import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.tasks.await
 import javax.inject.Inject
 import javax.inject.Singleton
+import com.example.telemedicineapp.model.User
 
 // Cập nhật Entity để khớp với Key "e-mail" trên Firebase
 data class UserEntity(
@@ -146,5 +147,47 @@ class AuthRepository @Inject constructor() {
                 }
             }
         awaitClose { listener.remove() }
+    }
+    // Vị trí: data/AuthRepository.kt
+// Thêm các hàm này vào class AuthRepository đã có của bạn
+
+    // 1. Lấy thông tin chi tiết User từ Firestore bằng Email
+    suspend fun getUserProfile(email: String): User? {
+        return try {
+            val snapshot = db.collection("Users")
+                .whereEqualTo("email", email)
+                .get().await()
+            if (!snapshot.isEmpty) {
+                // Sửa dòng này để tránh lỗi infer type
+                snapshot.documents[0].toObject(User::class.java)
+            } else null
+        } catch (e: Exception) { null }
+    }
+
+    // 2. Cập nhật hồ sơ (Update các field cụ thể)
+    suspend fun updateUserProfile(user: User, imageUri: Uri?): Boolean {
+        return try {
+            val snapshot = db.collection("Users")
+                .whereEqualTo("email", user.email)
+                .get().await()
+
+            if (snapshot.isEmpty) return false
+            val docRef = snapshot.documents[0].reference
+
+            val updates = mutableMapOf<String, Any>(
+                "name" to user.name,
+                "phone" to user.phone,
+                "address" to user.address,
+                "gender" to user.gender,
+                "bloodType" to user.bloodType,
+                "medicalHistory" to user.medicalHistory
+            )
+
+            // Nếu có ảnh mới, lưu tạm URI (hoặc upload lên Storage nếu bạn đã cài đặt)
+            imageUri?.let { updates["imageUrl"] = it.toString() }
+
+            docRef.update(updates).await()
+            true
+        } catch (e: Exception) { false }
     }
 }

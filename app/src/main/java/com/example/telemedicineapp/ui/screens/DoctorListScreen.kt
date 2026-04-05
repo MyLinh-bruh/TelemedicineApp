@@ -101,11 +101,7 @@ fun DoctorListScreen(
                             }
                         )
 
-                        DropdownMenuItem(
-                            text = { Text("Đăng ký làm bác sĩ", fontSize = 14.sp) },
-                            leadingIcon = { Icon(Icons.Default.MedicalServices, null, modifier = Modifier.size(20.dp)) },
-                            onClick = { showMenu = false; onRegisterDoctorClick() }
-                        )
+
 
                         HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp), thickness = 0.5.dp)
 

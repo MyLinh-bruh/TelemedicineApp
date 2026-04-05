@@ -99,6 +99,7 @@ fun AppNavigation(
     }
 
     NavHost(navController = navController, startDestination = startDestination) {
+        // --- CÁC MÀN HÌNH CŨ GIỮ NGUYÊN ---
         composable("login_screen") {
             LoginScreen(
                 onLoginSuccess = { role ->
@@ -144,20 +145,16 @@ fun AppNavigation(
 
         composable("admin_dashboard") {
             AdminHomeScreen(
-                allDoctors = allDoctorsForAdmin, // Đưa toàn bộ danh sách cho Admin duyệt
+                allDoctors = allDoctorsForAdmin,
                 onDoctorClick = { doctor ->
                     if (doctor.id.isNotEmpty()) {
                         navController.navigate("doctor_detail/${doctor.id}")
                     }
                 },
-                onApproveClick = { doctor ->
-                    doctorViewModel.approveDoctor(doctor)
-                },
-                // 🌟 THÊM SỰ KIỆN TỪ CHỐI TẠI ĐÂY
-                onRejectClick = { doctor ->
-                    doctorViewModel.rejectDoctor(doctor)
-                },
+                onApproveClick = { doctor -> doctorViewModel.approveDoctor(doctor) },
+                onRejectClick = { doctor -> doctorViewModel.rejectDoctor(doctor) },
                 onLogout = {
+                    tokenManager.clearSession() // Xóa session khi logout
                     navController.navigate("login_screen") {
                         popUpTo("admin_dashboard") { inclusive = true }
                     }
@@ -167,31 +164,40 @@ fun AppNavigation(
 
         composable("patient_home") {
             DoctorListScreen(
-                allDoctors = approvedDoctorsForPatient, // Chỉ đưa bác sĩ ĐÃ DUYỆT cho Bệnh nhân
+                allDoctors = approvedDoctorsForPatient,
                 onDoctorClick = { doctor ->
                     if (doctor.id.isNotEmpty()) {
                         navController.navigate("doctor_detail/${doctor.id}")
                     }
                 },
                 onLogout = {
+                    tokenManager.clearSession()
                     navController.navigate("login_screen") {
                         popUpTo("patient_home") { inclusive = true }
                     }
                 },
-                onProfileClick = {},
+                // 🌟 CẬP NHẬT: Điều hướng tới trang hồ sơ khi click profile
+                onProfileClick = {
+                    navController.navigate("patient_profile")
+                },
                 onRegisterDoctorClick = {
                     navController.navigate("register_doctor_screen")
                 },
-                // ĐÃ THÊM LỆNH ĐIỀU HƯỚNG TỚI LỊCH SỬ KHÁM
                 onHistoryClick = {
                     navController.navigate("appointment_history")
                 }
             )
         }
 
+        // 🌟 THÊM MỚI: Điều hướng tới trang hồ sơ bệnh nhân
+        composable("patient_profile") {
+            com.example.telemedicineapp.presentation.screen.ui.screens.PatientProfileScreen(
+                navController = navController
+            )
+        }
+
         composable("doctor_detail/{doctorId}") { backStackEntry ->
             val doctorId = backStackEntry.arguments?.getString("doctorId")
-            // Lấy từ danh sách Admin để có thể hiển thị kể cả bác sĩ đang chờ duyệt (nếu Admin click vào)
             val selectedDoctor = allDoctorsForAdmin.find { it.id == doctorId }
 
             if (selectedDoctor != null) {
@@ -217,7 +223,6 @@ fun AppNavigation(
 
         composable("doctor_dashboard") {}
 
-        // ĐÃ SỬA LỖI CÚ PHÁP THIẾU DẤU { }
         composable("appointment_history") {
             AppointmentHistoryScreen(
                 onBack = { navController.popBackStack() }

@@ -125,6 +125,9 @@ class AuthViewModel @Inject constructor(
                 if (user.role == "DOCTOR" && user.doctorStatus == "PENDING") {
                     _errorMessage.value = "Tài khoản đang chờ duyệt!"
                 } else {
+                    // --- CẬP NHẬT: LƯU EMAIL VÀO SESSION KHI ĐĂNG NHẬP THÀNH CÔNG ---
+                    tokenManager.saveEmail(email)
+
                     tokenManager.saveSession("Token_${UUID.randomUUID()}", user.role, user.doctorStatus)
                     _loginSuccess.value = Role.valueOf(user.role.uppercase())
                 }
@@ -132,7 +135,6 @@ class AuthViewModel @Inject constructor(
             _isLoading.value = false
         }
     }
-
     // ĐĂNG KÝ BỆNH NHÂN
     fun register(emailInput: String, passInput: String) {
         viewModelScope.launch {
