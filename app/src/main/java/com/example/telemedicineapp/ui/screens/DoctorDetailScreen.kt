@@ -99,6 +99,7 @@ fun DoctorDetailScreen(
                             fontSize = 13.sp
                         )
                     }
+
                 }
 
                 Row(
