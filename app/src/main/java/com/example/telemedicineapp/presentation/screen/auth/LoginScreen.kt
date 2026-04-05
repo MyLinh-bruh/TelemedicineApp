@@ -15,7 +15,8 @@ import com.example.telemedicineapp.model.Role
 @Composable
 fun LoginScreen(
     onLoginSuccess: (Role) -> Unit,
-    onGoToRegister: () -> Unit,
+    onGoToRegisterPatient: () -> Unit, // Đổi tên để rõ ràng hơn
+    onGoToRegisterDoctor: () -> Unit,  // Thêm điều hướng cho Bác sĩ
     viewModel: AuthViewModel = hiltViewModel()
 ) {
     var email by remember { mutableStateOf("") }
@@ -23,9 +24,8 @@ fun LoginScreen(
 
     val isLoading by viewModel.isLoading.collectAsState()
     val loginSuccess by viewModel.loginSuccess.collectAsState()
-    val errorMessage by viewModel.errorMessage.collectAsState() // Lấy lỗi từ ViewModel
+    val errorMessage by viewModel.errorMessage.collectAsState()
 
-    // Xử lý khi đăng nhập thành công
     LaunchedEffect(loginSuccess) {
         loginSuccess?.let { role ->
             onLoginSuccess(role)
@@ -33,11 +33,10 @@ fun LoginScreen(
         }
     }
 
-    // --- HIỂN THỊ POPUP THÔNG BÁO LỖI ---
     if (errorMessage != null) {
         AlertDialog(
             onDismissRequest = { viewModel.clearError() },
-            title = { Text("Đăng nhập thất bại", fontWeight = FontWeight.Bold) },
+            title = { Text("Thông báo", fontWeight = FontWeight.Bold) },
             text = { Text(errorMessage!!) },
             confirmButton = {
                 TextButton(onClick = { viewModel.clearError() }) {
@@ -48,7 +47,9 @@ fun LoginScreen(
     }
 
     Column(
-        modifier = Modifier.fillMaxSize().padding(24.dp),
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(24.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
@@ -80,7 +81,9 @@ fun LoginScreen(
 
         Button(
             onClick = { viewModel.login(email, password) },
-            modifier = Modifier.fillMaxWidth().height(55.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(55.dp),
             enabled = !isLoading
         ) {
             if (isLoading) {
@@ -90,12 +93,21 @@ fun LoginScreen(
             }
         }
 
-        Spacer(modifier = Modifier.height(24.dp))
+        Spacer(modifier = Modifier.height(32.dp))
 
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("Bạn chưa có tài khoản? ")
-            TextButton(onClick = onGoToRegister) {
-                Text("Đăng ký ngay", fontWeight = FontWeight.Bold)
+        // --- GIAO DIỆN CHỌN ĐĂNG KÝ MỚI ---
+        Text("Bạn chưa có tài khoản?", color = MaterialTheme.colorScheme.outline)
+        Spacer(modifier = Modifier.height(8.dp))
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceEvenly
+        ) {
+            TextButton(onClick = onGoToRegisterPatient) {
+                Text("Đăng ký Bệnh nhân", fontWeight = FontWeight.Bold)
+            }
+            TextButton(onClick = onGoToRegisterDoctor) {
+                Text("Đăng ký Bác sĩ", fontWeight = FontWeight.Bold)
             }
         }
     }

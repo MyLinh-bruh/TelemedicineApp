@@ -12,7 +12,6 @@ import javax.inject.Singleton
 class TokenManager @Inject constructor(@ApplicationContext context: Context) {
     private val prefs: SharedPreferences = context.getSharedPreferences("telemedicine_prefs", Context.MODE_PRIVATE)
 
-    // Lưu toàn bộ thông tin đăng nhập
     fun saveSession(token: String, role: String, status: String) {
         prefs.edit().apply {
             putString("JWT_TOKEN", token)
@@ -36,5 +35,16 @@ class TokenManager @Inject constructor(@ApplicationContext context: Context) {
 
     fun clearSession() {
         prefs.edit().clear().apply()
+    }
+
+    // --- CÁC HÀM QUẢN LÝ EMAIL ĐANG CHỜ DUYỆT ---
+    fun savePendingEmail(email: String) {
+        prefs.edit().putString("PENDING_EMAIL", email).apply()
+    }
+
+    fun getPendingEmail(): String? = prefs.getString("PENDING_EMAIL", null)
+
+    fun clearPendingEmail() {
+        prefs.edit().remove("PENDING_EMAIL").apply()
     }
 }
