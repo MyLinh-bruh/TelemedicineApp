@@ -91,4 +91,6 @@ dependencies {
     implementation("io.coil-kt:coil-compose:2.6.0")
     // 7. Nhắc hẹn
     implementation("com.google.firebase:firebase-messaging-ktx:23.4.0")
+    // 8. Icon của Material Design
+    implementation("androidx.compose.material:material-icons-extended:1.6.0")
 }

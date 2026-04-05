@@ -21,10 +21,12 @@ import com.example.telemedicineapp.presentation.screen.auth.RegisterDoctorScreen
 import com.example.telemedicineapp.presentation.screens.auth.LoginScreen
 import com.example.telemedicineapp.presentation.screen.auth.RegisterScreen
 import com.example.telemedicineapp.presentation.screen.doctor.DoctorViewModel
+import com.example.telemedicineapp.presentation.screen.appointment.AppointmentHistoryViewModel
 import com.example.telemedicineapp.ui.screens.AdminHomeScreen
 import com.example.telemedicineapp.ui.screens.DoctorDetailScreen
 import com.example.telemedicineapp.ui.screens.DoctorListScreen
 import com.example.telemedicineapp.ui.screens.BookingScreen
+import com.example.telemedicineapp.ui.screens.AppointmentHistoryScreen
 import com.example.telemedicineapp.ui.theme.TelemedicineAppTheme
 import com.google.firebase.messaging.FirebaseMessaging
 import dagger.hilt.android.AndroidEntryPoint
@@ -65,9 +67,7 @@ class MainActivity : ComponentActivity() {
             // Lấy token thành công
             val token = task.result
 
-            // IN RA LOGCAT ĐỂ LẤY MÃ ĐI DEMO:
-            // Bạn copy mã này, lên Firebase Console -> Build -> Messaging -> New Campaign -> Notification
-            // Dán mã này vào mục "Send test message" để test bắn thông báo xuống máy ngay lập tức!
+            // IN RA LOGCAT ĐỂ LẤY MÃ ĐI DEMO
             Log.d("FCM_TOKEN", "Device Token của máy này: $token")
         }
 
@@ -177,6 +177,10 @@ fun AppNavigation(
                 onProfileClick = {},
                 onRegisterDoctorClick = {
                     navController.navigate("register_doctor_screen")
+                },
+                // ĐÃ THÊM LỆNH ĐIỀU HƯỚNG TỚI LỊCH SỬ KHÁM
+                onHistoryClick = {
+                    navController.navigate("appointment_history")
                 }
             )
         }
@@ -208,5 +212,12 @@ fun AppNavigation(
         }
 
         composable("doctor_dashboard") {}
+
+        // ĐÃ SỬA LỖI CÚ PHÁP THIẾU DẤU { }
+        composable("appointment_history") {
+            AppointmentHistoryScreen(
+                onBack = { navController.popBackStack() }
+            )
+        }
     }
 }
