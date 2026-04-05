@@ -49,24 +49,23 @@ fun BookingScreen(
     var selectedTimeSlot by remember { mutableStateOf<String?>(null) }
     var reason by remember { mutableStateOf("") }
 
-    // State quản lý hiển thị Dialog khi bị trùng lịch (Conflict - 409)
+    // --- STATES QUẢN LÝ DIALOG & THANH TOÁN ---
     var showConflictDialog by remember { mutableStateOf(false) }
+    var showPaymentScreen by remember { mutableStateOf(false) }
 
-    // Gọi API lấy cả lịch rảnh và lịch đã đặt khi đổi ngày
+    // Gọi API lấy lịch khi đổi ngày
     LaunchedEffect(selectedDate) {
         appointmentViewModel.getSchedulesAndAppointments(doctor.id, selectedDate.fullDate)
     }
 
-    // Xử lý kết quả đặt lịch và bắt lỗi Double-Booking
+    // Xử lý kết quả đặt lịch
     LaunchedEffect(bookingState) {
         when (bookingState) {
             is BookingState.Success -> {
-                Toast.makeText(context, "Đặt lịch thành công!", Toast.LENGTH_SHORT).show()
-                appointmentViewModel.resetState()
-                onBack()
+                // Bật màn hình WebView thanh toán khi đặt lịch Firebase thành công
+                showPaymentScreen = true
             }
             is BookingState.Conflict -> {
-                // 🌟 HIỂN THỊ DIALOG KHI CÓ NGƯỜI KHÁC VỪA ĐẶT MẤT SLOT NÀY
                 showConflictDialog = true
             }
             is BookingState.Error -> {
@@ -77,170 +76,187 @@ fun BookingScreen(
         }
     }
 
-    // GIAO DIỆN DIALOG THÔNG BÁO TRÙNG LỊCH (CONFLICT)
-    if (showConflictDialog) {
-        AlertDialog(
-            onDismissRequest = { showConflictDialog = false },
-            title = { Text("Rất tiếc!", fontWeight = FontWeight.Bold) },
-            text = { Text("Lịch này vừa có người đặt. Vui lòng chọn khung giờ khác!") },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        showConflictDialog = false
-                        appointmentViewModel.resetState()
-                        // 🌟 TỰ ĐỘNG LOAD LẠI DỮ LIỆU MỚI NHẤT
-                        appointmentViewModel.getSchedulesAndAppointments(doctor.id, selectedDate.fullDate)
-                        selectedTimeSlot = null // Reset lại lựa chọn của user
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2563EB))
-                ) {
-                    Text("Đồng ý")
-                }
+    // --- LOGIC ĐIỀU HƯỚNG GIAO DIỆN ---
+    if (showPaymentScreen) {
+        // Mở màn hình WebView thanh toán (Sandbox)
+        PaymentWebViewScreen(
+            paymentUrl = "https://buy.stripe.com/test_8x2aEQ7K566kaQ7gLs3sI00", // Đã thay
+            onSuccess = {
+                Toast.makeText(context, "Thanh toán thành công!", Toast.LENGTH_LONG).show()
+                showPaymentScreen = false
+                appointmentViewModel.resetState()
+                onBack() // Quay về màn hình trước đó
             },
-            shape = RoundedCornerShape(16.dp)
+            onCancel = {
+                Toast.makeText(context, "Thanh toán đã bị hủy", Toast.LENGTH_SHORT).show()
+                showPaymentScreen = false
+                appointmentViewModel.resetState()
+            }
         )
-    }
-
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("Đặt lịch khám", fontWeight = FontWeight.Bold) },
-                navigationIcon = {
-                    IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, contentDescription = "Back") }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.White)
-            )
-        }
-    ) { paddingValues ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(Color(0xFFF4F6F9))
-                .padding(paddingValues)
-                .verticalScroll(rememberScrollState())
-        ) {
-            DoctorSimpleInfo(doctor)
-
-            // PHẦN CHỌN NGÀY
-            Column(modifier = Modifier.padding(16.dp)) {
-                Text("Ngày khám *", fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                Spacer(modifier = Modifier.height(8.dp))
-                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    items(availableDates) { dateItem ->
-                        DateSelectorItem(
-                            item = dateItem,
-                            isSelected = selectedDate == dateItem,
+    } else {
+        // GIAO DIỆN ĐẶT LỊCH CHÍNH
+        Scaffold(
+            topBar = {
+                TopAppBar(
+                    title = { Text("Đặt lịch khám", fontWeight = FontWeight.Bold) },
+                    navigationIcon = {
+                        IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, contentDescription = "Back") }
+                    },
+                    colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.White)
+                )
+            }
+        ) { paddingValues ->
+            // --- GIAO DIỆN DIALOG THÔNG BÁO TRÙNG LỊCH ---
+            if (showConflictDialog) {
+                AlertDialog(
+                    onDismissRequest = { showConflictDialog = false },
+                    title = { Text("Rất tiếc!", fontWeight = FontWeight.Bold) },
+                    text = { Text("Lịch này vừa có người đặt. Vui lòng chọn khung giờ khác!") },
+                    confirmButton = {
+                        Button(
                             onClick = {
-                                selectedDate = dateItem
+                                showConflictDialog = false
+                                appointmentViewModel.resetState()
+                                appointmentViewModel.getSchedulesAndAppointments(doctor.id, selectedDate.fullDate)
                                 selectedTimeSlot = null
-                            }
-                        )
-                    }
-                    item { OtherDateButton() }
-                }
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2563EB))
+                        ) {
+                            Text("Đồng ý")
+                        }
+                    },
+                    shape = RoundedCornerShape(16.dp)
+                )
             }
 
-            // PHẦN CHỌN GIỜ
-            Column(modifier = Modifier.padding(horizontal = 16.dp)) {
-                Text("Giờ khám *", fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                Spacer(modifier = Modifier.height(12.dp))
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color(0xFFF4F6F9))
+                    .padding(paddingValues)
+                    .verticalScroll(rememberScrollState())
+            ) {
+                DoctorSimpleInfo(doctor)
 
-                // BUỔI SÁNG
-                Text("Buổi sáng", fontWeight = FontWeight.SemiBold, color = Color.DarkGray, fontSize = 14.sp)
-                Spacer(modifier = Modifier.height(8.dp))
-                if (schedule?.morningSlots.isNullOrEmpty()) {
-                    Text("Không có lịch hẹn", fontSize = 12.sp, color = Color.Gray, modifier = Modifier.padding(vertical = 8.dp))
-                } else {
-                    TimeSlotGrid(
-                        slots = schedule!!.morningSlots,
-                        selectedSlot = selectedTimeSlot,
-                        bookedSlots = bookedSlots,
-                        busySlots = schedule?.busySlots ?: emptyList()
-                    ) { selectedTimeSlot = it }
+                // Chọn Ngày
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text("Ngày khám *", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                    Spacer(modifier = Modifier.height(8.dp))
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        items(availableDates) { dateItem ->
+                            DateSelectorItem(
+                                item = dateItem,
+                                isSelected = selectedDate == dateItem,
+                                onClick = {
+                                    selectedDate = dateItem
+                                    selectedTimeSlot = null
+                                }
+                            )
+                        }
+                        item { OtherDateButton() }
+                    }
+                }
+
+                // Chọn Giờ
+                Column(modifier = Modifier.padding(horizontal = 16.dp)) {
+                    Text("Giờ khám *", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    Text("Buổi sáng", fontWeight = FontWeight.SemiBold, color = Color.DarkGray, fontSize = 14.sp)
+                    Spacer(modifier = Modifier.height(8.dp))
+                    if (schedule?.morningSlots.isNullOrEmpty()) {
+                        Text("Không có lịch hẹn", fontSize = 12.sp, color = Color.Gray, modifier = Modifier.padding(vertical = 8.dp))
+                    } else {
+                        TimeSlotGrid(
+                            slots = schedule!!.morningSlots,
+                            selectedSlot = selectedTimeSlot,
+                            bookedSlots = bookedSlots,
+                            busySlots = schedule?.busySlots ?: emptyList()
+                        ) { selectedTimeSlot = it }
+                    }
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    Text("Buổi chiều", fontWeight = FontWeight.SemiBold, color = Color.DarkGray, fontSize = 14.sp)
+                    Spacer(modifier = Modifier.height(8.dp))
+                    if (schedule?.afternoonSlots.isNullOrEmpty()) {
+                        Text("Không có lịch hẹn", fontSize = 12.sp, color = Color.Gray, modifier = Modifier.padding(vertical = 8.dp))
+                    } else {
+                        TimeSlotGrid(
+                            slots = schedule!!.afternoonSlots,
+                            selectedSlot = selectedTimeSlot,
+                            bookedSlots = bookedSlots,
+                            busySlots = schedule?.busySlots ?: emptyList()
+                        ) { selectedTimeSlot = it }
+                    }
+
+                    Text(
+                        "Tất cả thời gian theo múi giờ Việt Nam GMT +7",
+                        color = Color.Gray, fontSize = 11.sp,
+                        modifier = Modifier.padding(top = 16.dp)
+                    )
+                }
+
+                // Lý do khám
+                Column(modifier = Modifier.padding(16.dp)) {
+                    OutlinedTextField(
+                        value = reason,
+                        onValueChange = { reason = it },
+                        label = { Text("Triệu chứng / Lý do khám") },
+                        modifier = Modifier.fillMaxWidth(),
+                        minLines = 3,
+                        shape = RoundedCornerShape(12.dp),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            unfocusedContainerColor = Color.White,
+                            focusedContainerColor = Color.White
+                        )
+                    )
                 }
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // BUỔI CHIỀU
-                Text("Buổi chiều", fontWeight = FontWeight.SemiBold, color = Color.DarkGray, fontSize = 14.sp)
-                Spacer(modifier = Modifier.height(8.dp))
-                if (schedule?.afternoonSlots.isNullOrEmpty()) {
-                    Text("Không có lịch hẹn", fontSize = 12.sp, color = Color.Gray, modifier = Modifier.padding(vertical = 8.dp))
-                } else {
-                    TimeSlotGrid(
-                        slots = schedule!!.afternoonSlots,
-                        selectedSlot = selectedTimeSlot,
-                        bookedSlots = bookedSlots,
-                        busySlots = schedule?.busySlots ?: emptyList()
-                    ) { selectedTimeSlot = it }
-                }
-
-                Text(
-                    "Tất cả thời gian theo múi giờ Việt Nam GMT +7",
-                    color = Color.Gray, fontSize = 11.sp,
-                    modifier = Modifier.padding(top = 16.dp)
-                )
-            }
-
-            // LÝ DO KHÁM
-            Column(modifier = Modifier.padding(16.dp)) {
-                OutlinedTextField(
-                    value = reason,
-                    onValueChange = { reason = it },
-                    label = { Text("Triệu chứng / Lý do khám") },
-                    modifier = Modifier.fillMaxWidth(),
-                    minLines = 3,
-                    shape = RoundedCornerShape(12.dp),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        unfocusedContainerColor = Color.White,
-                        focusedContainerColor = Color.White
-                    )
-                )
-            }
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // NÚT XÁC NHẬN
-            Button(
-                onClick = {
-                    if (selectedTimeSlot != null) {
-                        val startTime = selectedTimeSlot!!.split(" - ")[0]
-                        val utcDateTime = TimeUtils.convertLocalToUtcString(selectedDate.fullDate, startTime)
-                        if (utcDateTime != null) {
-                            val newAppointment = Appointment(
-                                patientId = "CURRENT_USER_ID",
-                                doctorId = doctor.id,
-                                doctorName = doctor.name,
-                                dateTimeUtc = utcDateTime,
-                                reason = reason,
-                                status = "CONFIRMED"
-                            )
-                            appointmentViewModel.bookAppointment(newAppointment)
+                // Nút Xác nhận (Sẽ trigger logic lưu Firebase trước)
+                Button(
+                    onClick = {
+                        if (selectedTimeSlot != null) {
+                            val startTime = selectedTimeSlot!!.split(" - ")[0]
+                            val utcDateTime = TimeUtils.convertLocalToUtcString(selectedDate.fullDate, startTime)
+                            if (utcDateTime != null) {
+                                val newAppointment = Appointment(
+                                    patientId = "PATIENT_001", // Thay bằng ID user thật
+                                    doctorId = doctor.id,
+                                    doctorName = doctor.name,
+                                    dateTimeUtc = utcDateTime,
+                                    reason = reason,
+                                    status = "PENDING" // Trạng thái chờ thanh toán
+                                )
+                                appointmentViewModel.bookAppointment(newAppointment)
+                            }
                         }
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp)
+                        .height(54.dp),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = if (selectedTimeSlot != null) Color(0xFF2563EB) else Color.LightGray
+                    ),
+                    enabled = selectedTimeSlot != null && bookingState !is BookingState.Loading
+                ) {
+                    if (bookingState is BookingState.Loading) {
+                        CircularProgressIndicator(color = Color.White, modifier = Modifier.size(24.dp))
+                    } else {
+                        Text("Tiếp tục thanh toán", fontWeight = FontWeight.Bold, fontSize = 16.sp)
                     }
-                },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp)
-                    .height(54.dp),
-                shape = RoundedCornerShape(12.dp),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = if (selectedTimeSlot != null) Color(0xFF2563EB) else Color.LightGray
-                ),
-                enabled = selectedTimeSlot != null && bookingState !is BookingState.Loading
-            ) {
-                if (bookingState is BookingState.Loading) {
-                    CircularProgressIndicator(color = Color.White, modifier = Modifier.size(24.dp))
-                } else {
-                    Text("Xác nhận đặt lịch", fontWeight = FontWeight.Bold, fontSize = 16.sp)
                 }
+                Spacer(modifier = Modifier.height(32.dp))
             }
-            Spacer(modifier = Modifier.height(32.dp))
         }
     }
 }
 
-// --- CÁC COMPONENT GIAO DIỆN (GIỮ NGUYÊN) ---
+// --- CÁC COMPONENT PHỤ TRỢ GIỮ NGUYÊN ---
 
 @Composable
 fun TimeSlotGrid(
