@@ -410,13 +410,13 @@ fun TimeSlotItem(
 ) {
     val isDisable = isBooked || isBusy
     val bgColor = when {
-        isBooked -> Color(0xFFFFEBEE)
+        isBooked -> Color(0xFFFEE2E2)
         isBusy -> Color(0xFFEEEEEE)
         isSelected -> Color(0xFF3B82F6)
         else -> Color.White
     }
     val textColor = when {
-        isBooked -> Color.Red
+        isBooked -> Color(0xFFDC2626)
         isBusy -> Color.Gray
         isSelected -> Color.White
         else -> Color.Black

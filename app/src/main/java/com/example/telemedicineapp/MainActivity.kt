@@ -17,7 +17,10 @@ import com.example.telemedicineapp.presentation.screen.auth.RegisterDoctorScreen
 import com.example.telemedicineapp.presentation.screens.auth.LoginScreen
 import com.example.telemedicineapp.presentation.screen.auth.RegisterScreen
 import com.example.telemedicineapp.presentation.screen.doctor.DoctorViewModel
-import com.example.telemedicineapp.ui.screens.*
+import com.example.telemedicineapp.ui.screens.AdminHomeScreen
+import com.example.telemedicineapp.ui.screens.DoctorDetailScreen
+import com.example.telemedicineapp.ui.screens.DoctorListScreen
+import com.example.telemedicineapp.ui.screens.BookingScreen
 import com.example.telemedicineapp.ui.theme.TelemedicineAppTheme
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
@@ -26,13 +29,12 @@ import javax.inject.Inject
 class MainActivity : ComponentActivity() {
 
     @Inject
-    lateinit var tokenManager: TokenManager // Inject TokenManager để kiểm tra trạng thái chờ
+    lateinit var tokenManager: TokenManager
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
             TelemedicineAppTheme {
-                // Truyền tokenManager vào AppNavigation
                 AppNavigation(tokenManager = tokenManager)
             }
         }
@@ -45,11 +47,11 @@ fun AppNavigation(
     tokenManager: TokenManager
 ) {
     val navController = rememberNavController()
-    val allDoctors by doctorViewModel.doctors.collectAsState()
 
-    // 🌟 LOGIC QUAN TRỌNG: Kiểm tra xem có email bác sĩ nào đang chờ duyệt không
-    // Nếu có email trong máy -> Vào thẳng màn hình RegisterDoctor (nơi có Popup chờ)
-    // Nếu không -> Vào màn hình Login như bình thường
+    // Tách riêng 2 danh sách để hiển thị đúng dữ liệu
+    val allDoctorsForAdmin by doctorViewModel.allDoctors.collectAsState()
+    val approvedDoctorsForPatient by doctorViewModel.doctors.collectAsState()
+
     val startDestination = remember {
         if (tokenManager.getPendingEmail() != null) {
             "register_doctor_screen"
@@ -58,11 +60,7 @@ fun AppNavigation(
         }
     }
 
-    NavHost(
-        navController = navController,
-        startDestination = startDestination
-    ) {
-        // 1. MÀN HÌNH ĐĂNG NHẬP
+    NavHost(navController = navController, startDestination = startDestination) {
         composable("login_screen") {
             LoginScreen(
                 onLoginSuccess = { role ->
@@ -80,7 +78,6 @@ fun AppNavigation(
             )
         }
 
-        // 2. MÀN HÌNH ĐĂNG KÝ BỆNH NHÂN
         composable("register_screen") {
             RegisterScreen(
                 onRegisterSuccess = { navController.popBackStack() },
@@ -88,7 +85,6 @@ fun AppNavigation(
             )
         }
 
-        // 3. MÀN HÌNH ĐĂNG KÝ BÁC SĨ (Vào đây sẽ tự hiện Popup chờ duyệt nhờ logic trong ViewModel)
         composable("register_doctor_screen") {
             RegisterDoctorScreen(
                 onRegisterSuccess = {
@@ -97,7 +93,6 @@ fun AppNavigation(
                     }
                 },
                 onBackToLogin = {
-                    // Nếu đang có đơn chờ duyệt mà bấm quay lại, ta nên cho về Login
                     if (tokenManager.getPendingEmail() != null) {
                         navController.navigate("login_screen") {
                             popUpTo("register_doctor_screen") { inclusive = true }
@@ -109,12 +104,13 @@ fun AppNavigation(
             )
         }
 
-        // 4. MÀN HÌNH ADMIN
-        composable(route = "admin_dashboard") {
+        composable("admin_dashboard") {
             AdminHomeScreen(
-                allDoctors = allDoctors,
+                allDoctors = allDoctorsForAdmin, // Đưa toàn bộ danh sách cho Admin duyệt
                 onDoctorClick = { doctor ->
-                    navController.navigate("doctor_detail/${doctor.id}")
+                    if (doctor.id.isNotEmpty()) {
+                        navController.navigate("doctor_detail/${doctor.id}")
+                    }
                 },
                 onApproveClick = { doctor ->
                     doctorViewModel.approveDoctor(doctor)
@@ -127,25 +123,31 @@ fun AppNavigation(
             )
         }
 
-        // 5. MÀN HÌNH BỆNH NHÂN (DANH SÁCH BÁC SĨ)
         composable("patient_home") {
             DoctorListScreen(
-                allDoctors = allDoctors,
-                onDoctorClick = { doctor -> navController.navigate("doctor_detail/${doctor.id}") },
+                allDoctors = approvedDoctorsForPatient, // Chỉ đưa bác sĩ ĐÃ DUYỆT cho Bệnh nhân
+                onDoctorClick = { doctor ->
+                    if (doctor.id.isNotEmpty()) {
+                        navController.navigate("doctor_detail/${doctor.id}")
+                    }
+                },
                 onLogout = {
                     navController.navigate("login_screen") {
                         popUpTo("patient_home") { inclusive = true }
                     }
                 },
-                onProfileClick = { /* Điều hướng tới Profile */ },
-                onRegisterDoctorClick = { navController.navigate("register_doctor_screen") }
+                onProfileClick = {},
+                onRegisterDoctorClick = {
+                    navController.navigate("register_doctor_screen")
+                }
             )
         }
 
-        // 6. CHI TIẾT BÁC SĨ
         composable("doctor_detail/{doctorId}") { backStackEntry ->
             val doctorId = backStackEntry.arguments?.getString("doctorId")
-            val selectedDoctor = allDoctors.find { it.id == doctorId }
+            // Lấy từ danh sách Admin để có thể hiển thị kể cả bác sĩ đang chờ duyệt (nếu Admin click vào)
+            val selectedDoctor = allDoctorsForAdmin.find { it.id == doctorId }
+
             if (selectedDoctor != null) {
                 DoctorDetailScreen(
                     doctor = selectedDoctor,
@@ -155,10 +157,10 @@ fun AppNavigation(
             }
         }
 
-        // 7. MÀN HÌNH ĐẶT LỊCH
         composable("booking_screen/{doctorId}") { backStackEntry ->
             val doctorId = backStackEntry.arguments?.getString("doctorId")
-            val selectedDoctor = allDoctors.find { it.id == doctorId }
+            val selectedDoctor = allDoctorsForAdmin.find { it.id == doctorId }
+
             if (selectedDoctor != null) {
                 BookingScreen(
                     doctor = selectedDoctor,
@@ -167,9 +169,6 @@ fun AppNavigation(
             }
         }
 
-        // 8. MÀN HÌNH DASHBOARD CHO BÁC SĨ
-        composable("doctor_dashboard") {
-            // Hiển thị giao diện riêng cho bác sĩ
-        }
+        composable("doctor_dashboard") {}
     }
 }
