@@ -1,7 +1,5 @@
 package com.example.telemedicineapp.model
 
-import com.google.firebase.firestore.PropertyName
-
 enum class Role {
     PATIENT, DOCTOR, ADMIN
 }
@@ -14,7 +12,6 @@ data class User(
     // --- THÔNG TIN CƠ BẢN ---
     val id: String = "",
     val email: String = "",
-    @get:PropertyName("e-mail")
     val name: String = "",
     val role: Role = Role.PATIENT,
 
@@ -30,7 +27,7 @@ data class User(
     val specialty: String = "",
     val description: String = "",
     val hospitalName: String = "",
-    val doctorStatus: String = "NONE",
+    val doctorStatus: DoctorStatus = DoctorStatus.NONE,
     val bankAccountNumber: String = "",
     val bankName: String = "",
 

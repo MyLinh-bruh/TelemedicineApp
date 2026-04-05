@@ -36,9 +36,9 @@ fun AdminHomeScreen(
     var selectedRequest by remember { mutableStateOf<User?>(null) }
     var searchQuery by remember { mutableStateOf("") }
 
-    // LỌC DỮ LIỆU THEO doctorStatus (Kiểu String như Model bạn gửi)
-    val approvedDoctors = allDoctors.filter { it.doctorStatus == "APPROVED" }
-    val pendingRequests = allDoctors.filter { it.doctorStatus == "PENDING" }
+    // SỬA LỖI Ở ĐÂY: Thêm .toString() để ép kiểu về chuỗi trước khi so sánh
+    val approvedDoctors = allDoctors.filter { it.doctorStatus.toString() == "APPROVED" }
+    val pendingRequests = allDoctors.filter { it.doctorStatus.toString() == "PENDING" }
 
     val filteredDoctors = approvedDoctors.filter { doctor ->
         doctor.name.contains(searchQuery, ignoreCase = true)
@@ -49,7 +49,8 @@ fun AdminHomeScreen(
         topBar = {
             TopAppBar(
                 title = { Text("Admin Dashboard", fontWeight = FontWeight.Bold) },
-                actions = { IconButton(onClick = onLogout) { Icon(Icons.Default.ExitToApp, null, tint = Color.Red) } }
+                actions = { IconButton(onClick = onLogout) { Icon(Icons.Default.ExitToApp, null, tint = Color.Red) } },
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.White)
             )
         },
         bottomBar = {
@@ -84,7 +85,11 @@ fun AdminHomeScreen(
                             modifier = Modifier.fillMaxWidth(),
                             placeholder = { Text("Tìm tên bác sĩ...") },
                             leadingIcon = { Icon(Icons.Default.Search, null) },
-                            shape = RoundedCornerShape(12.dp)
+                            shape = RoundedCornerShape(12.dp),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedContainerColor = Color.White,
+                                unfocusedContainerColor = Color.White
+                            )
                         )
                         Spacer(Modifier.height(16.dp))
                     }
@@ -138,7 +143,8 @@ fun ApprovalListView(requests: List<User>, onItemClick: (User) -> Unit) {
                     Spacer(Modifier.width(12.dp))
                     Column(Modifier.weight(1f)) {
                         // ĐỒNG BỘ: Hiện tên thật
-                        Text(req.name.ifEmpty { "Ẩn danh" }, fontWeight = FontWeight.Bold)
+                        val displayName = req.name.ifEmpty { req.email.split("@").firstOrNull() ?: "Bác sĩ" }
+                        Text(displayName, fontWeight = FontWeight.Bold)
                         // ĐỒNG BỘ: Hiện chuyên khoa thật (Thần Kinh,...)
                         Text(req.specialty.ifEmpty { "Chưa cập nhật chuyên khoa" }, fontSize = 12.sp, color = Color.Gray)
                     }
@@ -151,7 +157,7 @@ fun ApprovalListView(requests: List<User>, onItemClick: (User) -> Unit) {
 
 @Composable
 fun AdminDetailOverlay(req: User, onDismiss: () -> Unit, onApprove: () -> Unit) {
-    Surface(modifier = Modifier.fillMaxSize(), color = Color.Black.copy(0.6f)) {
+    Surface(modifier = Modifier.fillMaxSize(), color = Color.Black.copy(alpha = 0.6f)) {
         Box(contentAlignment = Alignment.Center) {
             Card(
                 modifier = Modifier.fillMaxWidth(0.9f),
@@ -167,7 +173,8 @@ fun AdminDetailOverlay(req: User, onDismiss: () -> Unit, onApprove: () -> Unit) 
                     Spacer(Modifier.height(16.dp))
 
                     // ĐỒNG BỘ THÔNG TIN TỪ MODEL USER
-                    DetailItem("Họ tên", req.name.ifEmpty { "Bác sĩ chưa nhập tên" })
+                    val displayName = req.name.ifEmpty { req.email.split("@").firstOrNull() ?: "Bác sĩ" }
+                    DetailItem("Họ tên", displayName)
                     DetailItem("Chuyên khoa", req.specialty.ifEmpty { "Chưa có thông tin" })
                     DetailItem("Bệnh viện", req.hospitalName.ifEmpty { "Chưa có thông tin" })
                     DetailItem("Email", req.email)
@@ -197,7 +204,7 @@ fun AdminDetailOverlay(req: User, onDismiss: () -> Unit, onApprove: () -> Unit) 
                         colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50)), // Màu xanh lá phê duyệt
                         shape = RoundedCornerShape(12.dp)
                     ) {
-                        Text("PHÊ DUYỆT NGAY", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                        Text("PHÊ DUYỆT NGAY", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = Color.White)
                     }
                 }
             }
@@ -210,6 +217,6 @@ fun DetailItem(label: String, value: String) {
     Column(modifier = Modifier.padding(vertical = 4.dp)) {
         Text(text = label, fontSize = 11.sp, color = Color.Gray)
         Text(text = value, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
-        HorizontalDivider(thickness = 0.5.dp, color = Color.LightGray)
+        HorizontalDivider(modifier = Modifier.padding(top = 4.dp), thickness = 0.5.dp, color = Color.LightGray)
     }
 }

@@ -18,43 +18,48 @@ class DoctorViewModel @Inject constructor(
     private val doctorRepository: DoctorRepository
 ) : ViewModel() {
 
+    // Danh sách cho Admin (Tất cả bác sĩ)
+    private val _allDoctors = MutableStateFlow<List<User>>(emptyList())
+    val allDoctors: StateFlow<List<User>> = _allDoctors
+
+    // Danh sách cho Bệnh Nhân (Chỉ bác sĩ đã duyệt)
     private val _doctors = MutableStateFlow<List<User>>(emptyList())
     val doctors: StateFlow<List<User>> = _doctors
 
     private val db = FirebaseFirestore.getInstance()
 
     init {
-        fetchDoctors()
+        fetchAllDoctors()
+        fetchApprovedDoctors()
     }
 
-    private fun fetchDoctors() {
+    private fun fetchAllDoctors() {
         viewModelScope.launch {
-            // Đảm bảo DoctorRepository.getDoctorsStream() của bạn
-            // hiện tại đang query từ collection "Users" với điều kiện role == "DOCTOR"
             doctorRepository.getDoctorsStream()
-                .catch { e ->
-                    // Xử lý lỗi nếu cần
-                    e.printStackTrace()
+                .catch { error -> /* Handle error */ }
+                .collect { doctorList ->
+                    _allDoctors.value = doctorList
                 }
+        }
+    }
+
+    private fun fetchApprovedDoctors() {
+        viewModelScope.launch {
+            doctorRepository.getApprovedDoctorsStream()
+                .catch { error -> /* Handle error */ }
                 .collect { doctorList ->
                     _doctors.value = doctorList
                 }
         }
     }
 
-    // --- HÀM PHÊ DUYỆT BÁC SĨ (ĐÃ CẬP NHẬT: CHỈ DÙNG BẢNG USERS) ---
     fun approveDoctor(doctor: User) {
         viewModelScope.launch {
             try {
-                // Vì không còn collection "Doctor", ta chỉ cần cập nhật trạng thái
-                // của chính Document đó trong collection "Users"
                 db.collection("Users")
                     .document(doctor.id)
                     .update("doctorStatus", "APPROVED")
                     .await()
-
-                // Sau khi update thành công trên Firebase,
-                // getDoctorsStream() sẽ tự động nhận diện thay đổi và cập nhật UI Admin
             } catch (e: Exception) {
                 e.printStackTrace()
             }
