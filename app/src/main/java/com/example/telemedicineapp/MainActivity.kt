@@ -15,8 +15,9 @@ import com.example.telemedicineapp.presentation.screens.auth.LoginScreen
 import com.example.telemedicineapp.presentation.screen.auth.RegisterScreen
 import com.example.telemedicineapp.presentation.screen.doctor.DoctorViewModel
 import com.example.telemedicineapp.ui.screens.AdminHomeScreen
-import com.example.telemedicineapp.ui.screens.DoctorDetailScreen // Nhớ import màn hình này
+import com.example.telemedicineapp.ui.screens.DoctorDetailScreen
 import com.example.telemedicineapp.ui.screens.DoctorListScreen
+import com.example.telemedicineapp.ui.screens.BookingScreen // 👈 THÊM MỚI Ở ĐÂY: Import màn hình BookingScreen
 import com.example.telemedicineapp.ui.theme.TelemedicineAppTheme
 import dagger.hilt.android.AndroidEntryPoint
 
@@ -89,7 +90,6 @@ fun AppNavigation(doctorViewModel: DoctorViewModel = hiltViewModel()) {
             DoctorListScreen(
                 allDoctors = allDoctors,
                 onDoctorClick = { doctor ->
-                    // 🌟 KHI BẤM VÀO BÁC SĨ, CHUYỂN HƯỚNG VÀ TRUYỀN ID CỦA BÁC SĨ ĐÓ
                     navController.navigate("doctor_detail/${doctor.id}")
                 },
                 onLogout = {
@@ -100,26 +100,40 @@ fun AppNavigation(doctorViewModel: DoctorViewModel = hiltViewModel()) {
             )
         }
 
-        // 5. MÀN HÌNH CHI TIẾT BÁC SĨ (MỚI THÊM)
+        // 5. MÀN HÌNH CHI TIẾT BÁC SĨ (ĐÃ CẬP NHẬT)
         composable("doctor_detail/{doctorId}") { backStackEntry ->
-            // Lấy ID bác sĩ từ đường dẫn (Route)
             val doctorId = backStackEntry.arguments?.getString("doctorId")
-
-            // Tìm bác sĩ trong danh sách allDoctors có ID khớp với ID trên đường dẫn
             val selectedDoctor = allDoctors.find { it.id == doctorId }
 
-            // Nếu tìm thấy bác sĩ thì hiển thị màn hình chi tiết
             if (selectedDoctor != null) {
                 DoctorDetailScreen(
                     doctor = selectedDoctor,
                     onBack = {
-                        // Nút quay lại: Rút màn hình hiện tại ra khỏi ngăn xếp (về lại danh sách)
+                        navController.popBackStack()
+                    },
+                    onBookClick = { id -> // 👈 THÊM MỚI Ở ĐÂY: Xử lý khi nhấn "Đặt lịch ngay"
+                        navController.navigate("booking_screen/$id")
+                    }
+                )
+            }
+        }
+
+        // 6. MÀN HÌNH ĐẶT LỊCH (👈 THÊM MỚI Ở ĐÂY)
+        composable("booking_screen/{doctorId}") { backStackEntry ->
+            val doctorId = backStackEntry.arguments?.getString("doctorId")
+            val selectedDoctor = allDoctors.find { it.id == doctorId }
+
+            if (selectedDoctor != null) {
+                BookingScreen(
+                    doctor = selectedDoctor,
+                    onBack = {
                         navController.popBackStack()
                     }
                 )
             }
         }
-        // 6. MÀN HÌNH BÁC SĨ (Dự phòng)
+
+        // 7. MÀN HÌNH BÁC SĨ (Dự phòng)
         composable("doctor_dashboard") {
         }
     }

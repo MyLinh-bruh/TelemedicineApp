@@ -19,7 +19,11 @@ import androidx.compose.ui.unit.sp
 import com.example.telemedicineapp.model.User
 
 @Composable
-fun DoctorDetailScreen(doctor: User, onBack: () -> Unit) {
+fun DoctorDetailScreen(
+    doctor: User,
+    onBack: () -> Unit,
+    onBookClick: (String) -> Unit // 👈 THÊM MỚI Ở ĐÂY: Callback để chuyển trang
+) {
     Box(modifier = Modifier.fillMaxSize().background(Color.White)) {
         Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
 
@@ -65,7 +69,7 @@ fun DoctorDetailScreen(doctor: User, onBack: () -> Unit) {
                         modifier = Modifier
                             .fillMaxSize()
                             .clip(RoundedCornerShape(32.dp))
-                            .background(Color(0xFF2563EB)), // ✅ fix lỗi ở đây
+                            .background(Color(0xFF2563EB)),
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
@@ -154,7 +158,7 @@ fun DoctorDetailScreen(doctor: User, onBack: () -> Unit) {
         }
 
         Button(
-            onClick = {},
+            onClick = { onBookClick(doctor.id) }, // 👈 THÊM MỚI Ở ĐÂY: Truyền ID bác sĩ sang Navigation
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .fillMaxWidth()
