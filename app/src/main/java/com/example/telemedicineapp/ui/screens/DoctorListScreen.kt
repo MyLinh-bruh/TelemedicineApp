@@ -3,11 +3,11 @@ package com.example.telemedicineapp.ui.screens
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ExitToApp
+import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -20,28 +20,36 @@ import androidx.compose.ui.unit.sp
 import com.example.telemedicineapp.model.User
 import com.example.telemedicineapp.ui.components.DoctorItem
 import com.example.telemedicineapp.ui.components.DoctorShimmer
+import androidx.compose.material.icons.filled.MedicalServices
+import androidx.compose.material.icons.filled.Person
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DoctorListScreen(
     onDoctorClick: (User) -> Unit,
     onLogout: () -> Unit,
-    allDoctors: List<User> // 👈 dữ liệu từ Firebase
+    allDoctors: List<User>,
+    onRegisterDoctorClick: () -> Unit,
+    onProfileClick: () -> Unit,
 ) {
     var searchQuery by remember { mutableStateOf("") }
-    var selectedFilter by remember { mutableStateOf("Tất cả") }
+    var selectedSpecialty by remember { mutableStateOf("Tất cả chuyên khoa") }
+    var selectedLocation by remember { mutableStateOf("Tất cả khu vực") }
 
-    val filters = listOf("Tất cả", "Tim mạch", "Nhi khoa", "Da liễu")
+    val specialties = listOf("Tất cả chuyên khoa", "Tim mạch", "Nhi khoa", "Da liễu", "Nội khoa")
+    val locations = listOf("Tất cả khu vực", "Đà Nẵng", "Hà Nội", "TP. Hồ Chí Minh")
 
-    // 👉 dùng dữ liệu thật từ Firebase
-    val filteredDoctors = allDoctors.filter {
-        (selectedFilter == "Tất cả" || it.specialty == selectedFilter) &&
-                it.name.contains(searchQuery, ignoreCase = true)
+    val filteredDoctors = allDoctors.filter { doctor ->
+        val matchesSearch = doctor.name.contains(searchQuery, ignoreCase = true)
+        val matchesSpecialty = selectedSpecialty == "Tất cả chuyên khoa" || doctor.specialty == selectedSpecialty
+        val matchesLocation = selectedLocation == "Tất cả khu vực" ||
+                doctor.address.lowercase().contains(selectedLocation.lowercase())
+        matchesSearch && matchesSpecialty && matchesLocation
     }
 
     Column(modifier = Modifier.fillMaxSize().background(Color(0xFFF8FAFC))) {
 
-        // HEADER
+        // --- HEADER ---
         Column(
             modifier = Modifier
                 .background(Color.White)
@@ -57,24 +65,47 @@ fun DoctorListScreen(
                     Text("Tìm chuyên gia y tế phù hợp", fontSize = 12.sp, color = Color.Gray)
                 }
 
-                IconButton(
-                    onClick = onLogout,
-                    modifier = Modifier
-                        .background(Color(0xFFFFEBEE), RoundedCornerShape(12.dp))
-                        .size(40.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.ExitToApp,
-                        contentDescription = "Logout",
-                        tint = Color.Red,
-                        modifier = Modifier.size(20.dp)
-                    )
+                // --- MENU 3 GẠCH ---
+                Box {
+                    var showMenu by remember { mutableStateOf(false) }
+
+                    IconButton(
+                        onClick = { showMenu = true },
+                        modifier = Modifier
+                            .background(Color(0xFFF1F5F9), RoundedCornerShape(12.dp))
+                            .size(40.dp)
+                    ) {
+                        Icon(Icons.Default.Menu, "Menu", tint = Color.Black)
+                    }
+
+                    DropdownMenu(
+                        expanded = showMenu,
+                        onDismissRequest = { showMenu = false },
+                        modifier = Modifier.background(Color.White)
+                    ) {
+                        DropdownMenuItem(
+                            text = { Text("Hồ sơ bệnh nhân", fontSize = 14.sp) },
+                            leadingIcon = { Icon(Icons.Default.Person, null, modifier = Modifier.size(20.dp)) },
+                            onClick = { showMenu = false; onProfileClick() }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Đăng ký làm bác sĩ", fontSize = 14.sp) },
+                            leadingIcon = { Icon(Icons.Default.MedicalServices, null, modifier = Modifier.size(20.dp)) },
+                            onClick = { showMenu = false; onRegisterDoctorClick() }
+                        )
+                        HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp), thickness = 0.5.dp)
+                        DropdownMenuItem(
+                            text = { Text("Đăng xuất", fontSize = 14.sp, color = Color.Red) },
+                            leadingIcon = { Icon(Icons.Default.ExitToApp, null, tint = Color.Red, modifier = Modifier.size(20.dp)) },
+                            onClick = { showMenu = false; onLogout() }
+                        )
+                    }
                 }
             }
 
             Spacer(modifier = Modifier.height(20.dp))
 
-            // SEARCH
+            // Ô TÌM KIẾM
             OutlinedTextField(
                 value = searchQuery,
                 onValueChange = { searchQuery = it },
@@ -93,34 +124,92 @@ fun DoctorListScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // FILTER
-            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                items(filters) { filter ->
-                    FilterChip(
-                        selected = selectedFilter == filter,
-                        onClick = { selectedFilter = filter },
-                        label = { Text(filter, fontWeight = FontWeight.Bold, fontSize = 11.sp) },
-                        shape = RoundedCornerShape(20.dp),
-                        colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = Color(0xFF2563EB),
-                            selectedLabelColor = Color.White
-                        ),
-                        border = null
-                    )
-                }
+            // BỘ LỌC DROPDOWN
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                FilterDropdown(
+                    label = "Chuyên khoa",
+                    options = specialties,
+                    selectedOption = selectedSpecialty,
+                    onOptionSelected = { selectedSpecialty = it },
+                    modifier = Modifier.weight(1f)
+                )
+                FilterDropdown(
+                    label = "Địa điểm",
+                    options = locations,
+                    selectedOption = selectedLocation,
+                    onOptionSelected = { selectedLocation = it },
+                    modifier = Modifier.weight(1f)
+                )
             }
         }
 
+        // --- DANH SÁCH BÁC SĨ ---
         if (allDoctors.isEmpty()) {
             DoctorShimmer()
         } else {
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(bottom = 24.dp)
+                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 items(filteredDoctors) { doctor ->
                     DoctorItem(doctor, onClick = { onDoctorClick(doctor) })
                 }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun FilterDropdown(
+    label: String,
+    options: List<String>,
+    selectedOption: String,
+    onOptionSelected: (String) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    var expanded by remember { mutableStateOf(false) }
+
+    ExposedDropdownMenuBox(
+        expanded = expanded,
+        onExpandedChange = { expanded = !expanded },
+        modifier = modifier
+    ) {
+        OutlinedTextField(
+            value = selectedOption,
+            onValueChange = {},
+            readOnly = true,
+            label = { Text(label, fontSize = 10.sp) },
+            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+            modifier = Modifier.menuAnchor().fillMaxWidth(),
+            textStyle = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp, fontWeight = FontWeight.Bold),
+            shape = RoundedCornerShape(12.dp),
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedContainerColor = Color(0xFFF1F5F9),
+                unfocusedContainerColor = Color(0xFFF1F5F9),
+                focusedBorderColor = Color(0xFF2563EB),
+                unfocusedBorderColor = Color(0xFFE2E8F0)
+            )
+        )
+
+        ExposedDropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false },
+            modifier = Modifier.background(Color.White)
+        ) {
+            options.forEach { option ->
+                DropdownMenuItem(
+                    text = { Text(option, fontSize = 13.sp) },
+                    onClick = {
+                        onOptionSelected(option)
+                        expanded = false
+                    },
+                    contentPadding = ExposedDropdownMenuDefaults.ItemContentPadding
+                )
             }
         }
     }
