@@ -40,7 +40,9 @@ class AuthRepository @Inject constructor() {
             if (!snapshot.isEmpty) {
                 snapshot.documents[0].toObject(UserEntity::class.java)
             } else null
-        } catch (e: Exception) { null }
+        } catch (e: Exception) {
+            null
+        }
     }
 
     // --- 2. ĐĂNG KÝ BỆNH NHÂN (Dùng e-mail) ---
@@ -57,7 +59,9 @@ class AuthRepository @Inject constructor() {
             )
             db.collection("Users").add(newUser).await()
             RegisterResult.SUCCESS
-        } catch (e: Exception) { RegisterResult.ERROR }
+        } catch (e: Exception) {
+            RegisterResult.ERROR
+        }
     }
 
     // --- 3. ĐĂNG KÝ BÁC SĨ (CHỈ LƯU VÀO COLLECTION USERS) ---
@@ -120,6 +124,8 @@ class AuthRepository @Inject constructor() {
     }
 
     // --- 5. LẮNG NGHE TRẠNG THÁI REALTIME ---
+    // Mở file data/AuthRepository.kt, tìm hàm listenToDoctorStatus và sửa lại như sau:
+    // Trong data/AuthRepository.kt
     fun listenToDoctorStatus(email: String): Flow<String> = callbackFlow {
         val listener = db.collection("Users").whereEqualTo("email", email)
             .addSnapshotListener { snapshot, error ->
@@ -127,9 +133,16 @@ class AuthRepository @Inject constructor() {
                     close(error)
                     return@addSnapshotListener
                 }
-                if (snapshot != null && !snapshot.isEmpty) {
-                    val status = snapshot.documents[0].getString("doctorStatus") ?: "PENDING"
-                    trySend(status)
+
+                if (snapshot != null) {
+                    if (!snapshot.isEmpty) {
+                        // Nếu vẫn còn dữ liệu (đang chờ hoặc đã duyệt)
+                        val status = snapshot.documents[0].getString("doctorStatus") ?: "PENDING"
+                        trySend(status)
+                    } else {
+                        // 🌟 QUAN TRỌNG: Nếu snapshot rỗng nghĩa là Admin đã XÓA ĐƠN
+                        trySend("DELETED")
+                    }
                 }
             }
         awaitClose { listener.remove() }

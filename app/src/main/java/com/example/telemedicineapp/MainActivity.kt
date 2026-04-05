@@ -115,6 +115,10 @@ fun AppNavigation(
                 onApproveClick = { doctor ->
                     doctorViewModel.approveDoctor(doctor)
                 },
+                // 🌟 THÊM SỰ KIỆN TỪ CHỐI TẠI ĐÂY
+                onRejectClick = { doctor ->
+                    doctorViewModel.rejectDoctor(doctor)
+                },
                 onLogout = {
                     navController.navigate("login_screen") {
                         popUpTo("admin_dashboard") { inclusive = true }

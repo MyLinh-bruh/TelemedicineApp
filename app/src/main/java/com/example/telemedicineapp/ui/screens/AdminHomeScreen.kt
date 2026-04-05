@@ -30,6 +30,7 @@ fun AdminHomeScreen(
     allDoctors: List<User>,
     onDoctorClick: (User) -> Unit,
     onApproveClick: (User) -> Unit,
+    onRejectClick: (User) -> Unit,
     onLogout: () -> Unit
 ) {
     var selectedTab by remember { mutableIntStateOf(0) }
@@ -106,13 +107,17 @@ fun AdminHomeScreen(
                 )
             }
 
-            // POPUP CHI TIẾT ĐỂ PHÊ DUYỆT
+            // POPUP CHI TIẾT ĐỂ PHÊ DUYỆT / TỪ CHỐI
             selectedRequest?.let { req ->
                 AdminDetailOverlay(
                     req = req,
                     onDismiss = { selectedRequest = null },
                     onApprove = {
                         onApproveClick(req)
+                        selectedRequest = null
+                    },
+                    onReject = { // 🌟 TRUYỀN SỰ KIỆN TỪ CHỐI VÀO ĐÂY
+                        onRejectClick(req)
                         selectedRequest = null
                     }
                 )
@@ -156,7 +161,7 @@ fun ApprovalListView(requests: List<User>, onItemClick: (User) -> Unit) {
 }
 
 @Composable
-fun AdminDetailOverlay(req: User, onDismiss: () -> Unit, onApprove: () -> Unit) {
+fun AdminDetailOverlay(req: User, onDismiss: () -> Unit, onApprove: () -> Unit, onReject: () -> Unit) {
     Surface(modifier = Modifier.fillMaxSize(), color = Color.Black.copy(alpha = 0.6f)) {
         Box(contentAlignment = Alignment.Center) {
             Card(
@@ -205,6 +210,14 @@ fun AdminDetailOverlay(req: User, onDismiss: () -> Unit, onApprove: () -> Unit) 
                         shape = RoundedCornerShape(12.dp)
                     ) {
                         Text("PHÊ DUYỆT NGAY", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = Color.White)
+                    }
+                    Button(
+                        onClick = onReject, // Gọi hàm xóa
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color.Red), // Màu đỏ
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Text("TỪ CHỐI & XÓA ĐƠN")
                     }
                 }
             }

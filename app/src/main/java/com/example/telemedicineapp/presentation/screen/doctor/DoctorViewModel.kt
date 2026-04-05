@@ -65,4 +65,19 @@ class DoctorViewModel @Inject constructor(
             }
         }
     }
+
+    // Trong presentation/screen/doctor/DoctorViewModel.kt
+    fun rejectDoctor(doctor: User) {
+        viewModelScope.launch {
+            try {
+                // Admin ra lệnh xóa đơn trực tiếp trên Firebase
+                val success = doctorRepository.rejectAndRemoveDoctor(doctor.id)
+                if (success) {
+                    println("Admin đã xóa đơn đăng ký của: ${doctor.name}")
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+    }
 }

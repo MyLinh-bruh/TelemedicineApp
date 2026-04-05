@@ -56,6 +56,7 @@ fun RegisterDoctorScreen(
     val errorMessage by viewModel.errorMessage.collectAsState()
     val isWaitingApproval by viewModel.isWaitingApproval.collectAsState()
     val isApproved by viewModel.isApproved.collectAsState()
+    val isRejected by viewModel.isRejected.collectAsState()
 
 
     // ----------------------------------------------------------------
@@ -101,6 +102,27 @@ fun RegisterDoctorScreen(
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50))
                 ) {
                     Text("Đăng nhập ngay")
+                }
+            }
+        )
+    }
+
+    if (isRejected) {
+        AlertDialog(
+            onDismissRequest = { /* Chặn tắt ngang */ },
+            title = { Text("Yêu cầu bị từ chối", fontWeight = FontWeight.Bold, color = Color.Red) },
+            text = {
+                Text("Yêu cầu đăng ký Bác sĩ của bạn đã bị Admin từ chối và hủy bỏ khỏi hệ thống.")
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        viewModel.resetApprovalState()
+                        onBackToLogin() // Bấm xong thì đẩy họ về trang đăng nhập
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color.Red)
+                ) {
+                    Text("Quay lại Đăng nhập", color = Color.White)
                 }
             }
         )

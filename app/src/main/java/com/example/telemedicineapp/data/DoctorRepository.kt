@@ -1,4 +1,5 @@
 package com.example.telemedicineapp.data
+import kotlinx.coroutines.tasks.await
 
 import android.util.Log
 import com.example.telemedicineapp.model.Role
@@ -55,5 +56,16 @@ class DoctorRepository @Inject constructor() {
                 }
             }
         awaitClose { listener.remove() }
+    }
+
+    suspend fun rejectAndRemoveDoctor(doctorId: String): Boolean {
+        return try {
+            // 🌟 XÓA VĨNH VIỄN tài liệu bác sĩ khỏi collection Users
+            db.collection("Users").document(doctorId).delete().await()
+            true
+        } catch (e: Exception) {
+            e.printStackTrace()
+            false
+        }
     }
 }

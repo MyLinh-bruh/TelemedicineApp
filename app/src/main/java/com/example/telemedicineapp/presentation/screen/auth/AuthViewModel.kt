@@ -16,8 +16,11 @@ import javax.inject.Inject
 @HiltViewModel
 class AuthViewModel @Inject constructor(
     private val tokenManager: TokenManager,
-    private val authRepo: AuthRepository
+    private val authRepo: AuthRepository,
 ) : ViewModel() {
+
+    private val _isRejected = MutableStateFlow(false)
+    val isRejected: StateFlow<Boolean> = _isRejected
 
     private val _isLoading = MutableStateFlow(false)
     val isLoading: StateFlow<Boolean> = _isLoading
@@ -44,12 +47,21 @@ class AuthViewModel @Inject constructor(
     }
 
     // Hàm lắng nghe trạng thái từ Firebase
+    // Hàm lắng nghe trạng thái từ Firebase
+    // Trong presentation/screens/auth/AuthViewModel.kt
     private fun startListeningStatus(email: String) {
         authRepo.listenToDoctorStatus(email).onEach { status ->
-            if (status == "APPROVED") {
-                _isWaitingApproval.value = false
-                _isApproved.value = true
-                tokenManager.clearPendingEmail() // Duyệt xong thì xóa email chờ ở máy
+            when (status) {
+                "APPROVED" -> {
+                    _isWaitingApproval.value = false
+                    _isApproved.value = true
+                    tokenManager.clearPendingEmail()
+                }
+                "DELETED" -> { // 🌟 Admin đã xóa đơn trên DB
+                    _isWaitingApproval.value = false
+                    _isRejected.value = true // Kích hoạt Popup thông báo bị từ chối
+                    tokenManager.clearPendingEmail() // Xóa email treo trong máy bác sĩ
+                }
             }
         }.launchIn(viewModelScope)
     }
@@ -136,6 +148,6 @@ class AuthViewModel @Inject constructor(
     // CÁC HÀM HỖ TRỢ UI
     fun showError(message: String) { _errorMessage.value = message }
     fun clearError() { _errorMessage.value = null }
-    fun resetApprovalState() { _isWaitingApproval.value = false; _isApproved.value = false }
+    fun resetApprovalState() { _isWaitingApproval.value = false; _isApproved.value = false ; _isRejected.value = false}
     fun resetLoginStatus() { _loginSuccess.value = null }
 }
