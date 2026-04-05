@@ -295,7 +295,7 @@ fun BookingScreen(
                             val utcDateTime = TimeUtils.convertLocalToUtcString(selectedDate.fullDate, startTime)
                             if (utcDateTime != null) {
                                 val newAppointment = Appointment(
-                                    patientId = "PATIENT_001",
+                                    patientId = "PATIENT_001", // TODO: Thay bằng ID User thực tế sau
                                     doctorId = doctor.id,
                                     doctorName = doctor.name,
                                     dateTimeUtc = utcDateTime,
@@ -408,33 +408,53 @@ fun TimeSlotItem(
     modifier: Modifier,
     onClick: () -> Unit
 ) {
+    // Nếu bị đặt (Booked) hoặc bị khóa từ phía BS (Busy) thì không cho click
     val isDisable = isBooked || isBusy
+
+    // Thay đổi màu nền
     val bgColor = when {
-        isBooked -> Color(0xFFFEE2E2)
+        isBooked -> Color(0xFFFEE2E2) // Nền đỏ nhạt cảnh báo
         isBusy -> Color(0xFFEEEEEE)
         isSelected -> Color(0xFF3B82F6)
         else -> Color.White
     }
+
+    // Thay đổi màu chữ thời gian
     val textColor = when {
-        isBooked -> Color(0xFFDC2626)
+        isBooked -> Color(0xFFDC2626) // Chữ đỏ đậm
         isBusy -> Color.Gray
         isSelected -> Color.White
         else -> Color.Black
     }
 
+    // Thay đổi màu viền
+    val borderColor = when {
+        isBooked -> Color(0xFFFECACA) // Viền đỏ nhạt
+        isSelected -> Color(0xFF3B82F6)
+        else -> Color(0xFFE5E7EB)
+    }
+
     Surface(
         modifier = modifier
             .height(50.dp)
-            .clickable(enabled = !isDisable) { onClick() },
+            .clickable(enabled = !isDisable) { onClick() }, // Khóa click nếu isDisable = true
         color = bgColor,
         shape = RoundedCornerShape(8.dp),
-        border = BorderStroke(1.dp, if(isSelected) Color(0xFF3B82F6) else Color(0xFFE5E7EB))
+        border = BorderStroke(1.dp, borderColor)
     ) {
         Box(contentAlignment = Alignment.Center) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text(slot, color = textColor, fontSize = 12.sp, fontWeight = FontWeight.Medium)
-                if (isBooked) Text("Đã đặt", color = Color.Red, fontSize = 9.sp)
-                else if (isBusy) Text("Bận", color = Color.Gray, fontSize = 9.sp)
+                Text(
+                    text = slot,
+                    color = textColor,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold // Bôi đậm chữ giờ khám
+                )
+                if (isBooked) {
+                    Text("Đã đặt", color = Color(0xFFDC2626), fontSize = 9.sp, fontWeight = FontWeight.Medium)
+                } else if (isBusy) {
+                    Text("Bận", color = Color.Gray, fontSize = 9.sp)
+                }
             }
         }
     }

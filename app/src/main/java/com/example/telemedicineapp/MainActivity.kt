@@ -1,8 +1,12 @@
 package com.example.telemedicineapp
 
+import android.Manifest
+import android.os.Build
 import android.os.Bundle
+import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -22,6 +26,7 @@ import com.example.telemedicineapp.ui.screens.DoctorDetailScreen
 import com.example.telemedicineapp.ui.screens.DoctorListScreen
 import com.example.telemedicineapp.ui.screens.BookingScreen
 import com.example.telemedicineapp.ui.theme.TelemedicineAppTheme
+import com.google.firebase.messaging.FirebaseMessaging
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
 
@@ -31,8 +36,41 @@ class MainActivity : ComponentActivity() {
     @Inject
     lateinit var tokenManager: TokenManager
 
+    // --- XIN QUYỀN THÔNG BÁO (ANDROID 13+) ---
+    private val requestPermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { isGranted: Boolean ->
+        if (isGranted) {
+            Log.d("FCM", "Quyền thông báo đã được cấp")
+        } else {
+            Log.w("FCM", "Người dùng từ chối cấp quyền thông báo")
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        // 1. Kiểm tra và xin quyền gửi Notification nếu máy chạy Android 13 trở lên
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            requestPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+        }
+
+        // 2. Lấy Device Token từ Firebase Cloud Messaging
+        FirebaseMessaging.getInstance().token.addOnCompleteListener { task ->
+            if (!task.isSuccessful) {
+                Log.w("FCM_TOKEN", "Lấy FCM token thất bại", task.exception)
+                return@addOnCompleteListener
+            }
+
+            // Lấy token thành công
+            val token = task.result
+
+            // IN RA LOGCAT ĐỂ LẤY MÃ ĐI DEMO:
+            // Bạn copy mã này, lên Firebase Console -> Build -> Messaging -> New Campaign -> Notification
+            // Dán mã này vào mục "Send test message" để test bắn thông báo xuống máy ngay lập tức!
+            Log.d("FCM_TOKEN", "Device Token của máy này: $token")
+        }
+
         setContent {
             TelemedicineAppTheme {
                 AppNavigation(tokenManager = tokenManager)
