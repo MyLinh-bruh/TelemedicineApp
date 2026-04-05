@@ -96,10 +96,16 @@ fun AppNavigation(doctorViewModel: DoctorViewModel = hiltViewModel()) {
                     navController.navigate("login_screen") {
                         popUpTo("patient_home") { inclusive = true }
                     }
+                },
+                // PHẢI THÊM 2 DÒNG NÀY VÀO ĐÂY:
+                onProfileClick = {
+                    navController.navigate("profile_screen") // Thay bằng route thực tế của bạn
+                },
+                onRegisterDoctorClick = {
+                    navController.navigate("register_doctor_screen") // Thay bằng route thực tế của bạn
                 }
             )
         }
-
         // 5. MÀN HÌNH CHI TIẾT BÁC SĨ (ĐÃ CẬP NHẬT)
         composable("doctor_detail/{doctorId}") { backStackEntry ->
             val doctorId = backStackEntry.arguments?.getString("doctorId")
