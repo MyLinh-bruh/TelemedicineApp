@@ -33,9 +33,7 @@ class TokenManager @Inject constructor(@ApplicationContext context: Context) {
         return try { DoctorStatus.valueOf(statusStr!!) } catch (e: Exception) { DoctorStatus.NONE }
     }
 
-    fun clearSession() {
-        prefs.edit().clear().apply()
-    }
+
 
     // --- CÁC HÀM QUẢN LÝ EMAIL ĐANG CHỜ DUYỆT ---
     fun savePendingEmail(email: String) {
@@ -46,5 +44,16 @@ class TokenManager @Inject constructor(@ApplicationContext context: Context) {
 
     fun clearPendingEmail() {
         prefs.edit().remove("PENDING_EMAIL").apply()
+    }
+    // Thêm vào trong class TokenManager của bạn
+    fun saveEmail(email: String) {
+        prefs.edit().putString("USER_EMAIL", email).apply()
+    }
+
+    fun getEmail(): String? = prefs.getString("USER_EMAIL", null)
+
+    // Cập nhật hàm clearSession để xóa luôn cả email khi đăng xuất
+    fun clearSession() {
+        prefs.edit().clear().apply()
     }
 }
