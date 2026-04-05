@@ -24,6 +24,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -45,7 +46,6 @@ fun BookingScreen(
 ) {
     val context = LocalContext.current
 
-    // Lấy dữ liệu từ ViewModel
     val bookingState by appointmentViewModel.bookingState.collectAsState()
     val schedule by appointmentViewModel.doctorSchedule.collectAsState()
     val bookedSlots by appointmentViewModel.bookedSlots.collectAsState()
@@ -55,22 +55,19 @@ fun BookingScreen(
     var selectedTimeSlot by remember { mutableStateOf<String?>(null) }
     var reason by remember { mutableStateOf("") }
 
-    // --- STATES QUẢN LÝ DIALOG & THANH TOÁN ---
-    var selectedPaymentMethod by remember { mutableStateOf("STRIPE") } // Mặc định là Stripe
+    var selectedPaymentMethod by remember { mutableStateOf("STRIPE") }
     var showConflictDialog by remember { mutableStateOf(false) }
     var showPaymentWebView by remember { mutableStateOf(false) }
     var showQRDialog by remember { mutableStateOf(false) }
+    var showSuccessDialog by remember { mutableStateOf(false) }
 
-    // Gọi API lấy lịch khi đổi ngày
     LaunchedEffect(selectedDate) {
         appointmentViewModel.getSchedulesAndAppointments(doctor.id, selectedDate.fullDate)
     }
 
-    // Xử lý kết quả đặt lịch
     LaunchedEffect(bookingState) {
         when (bookingState) {
             is BookingState.Success -> {
-                // Tùy vào phương thức đã chọn mà bật màn hình tương ứng
                 if (selectedPaymentMethod == "STRIPE") {
                     showPaymentWebView = true
                 } else {
@@ -88,25 +85,23 @@ fun BookingScreen(
         }
     }
 
-    // --- LOGIC ĐIỀU HƯỚNG GIAO DIỆN ---
     if (showPaymentWebView) {
-        // Mở màn hình WebView thanh toán (Sandbox)
         PaymentWebViewContent(
-            url = "https://buy.stripe.com/test_8x2aEQ7K566kaQ7gLs3sI00", // Link Stripe của bạn
+            url = "https://buy.stripe.com/test_8x2aEQ7K566kaQ7gLs3sI00",
             onSuccess = {
-                Toast.makeText(context, "Thanh toán thành công!", Toast.LENGTH_LONG).show()
                 showPaymentWebView = false
-                appointmentViewModel.resetState()
-                onBack() // Quay về màn hình trước đó
+                appointmentViewModel.confirmAppointmentStatus("PAID")
+                showSuccessDialog = true
             },
             onCancel = {
                 Toast.makeText(context, "Thanh toán đã bị hủy", Toast.LENGTH_SHORT).show()
                 showPaymentWebView = false
+                appointmentViewModel.cancelPendingAppointment()
                 appointmentViewModel.resetState()
+                appointmentViewModel.getSchedulesAndAppointments(doctor.id, selectedDate.fullDate)
             }
         )
     } else {
-        // GIAO DIỆN ĐẶT LỊCH CHÍNH
         Scaffold(
             topBar = {
                 TopAppBar(
@@ -119,25 +114,58 @@ fun BookingScreen(
             }
         ) { paddingValues ->
 
-            // --- GIAO DIỆN DIALOG QUÉT MÃ QR ---
+            if (showSuccessDialog) {
+                AlertDialog(
+                    onDismissRequest = { },
+                    title = {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
+                            Icon(Icons.Default.CheckCircle, contentDescription = null, tint = Color(0xFF10B981), modifier = Modifier.size(64.dp))
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text("Đặt lịch thành công!", fontWeight = FontWeight.Bold, color = Color(0xFF10B981))
+                        }
+                    },
+                    text = {
+                        Text(
+                            "Hệ thống đã ghi nhận thanh toán và lịch hẹn của bạn. Bạn có thể kiểm tra chi tiết trong mục 'Lịch hẹn của tôi'.",
+                            textAlign = TextAlign.Center, fontSize = 14.sp
+                        )
+                    },
+                    confirmButton = {
+                        Button(
+                            onClick = {
+                                showSuccessDialog = false
+                                appointmentViewModel.resetState()
+                                onBack()
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2563EB))
+                        ) {
+                            Text("Quay lại Trang chủ", fontWeight = FontWeight.Bold)
+                        }
+                    },
+                    shape = RoundedCornerShape(16.dp)
+                )
+            }
+
             if (showQRDialog) {
                 PaymentQRDialog(
                     amount = "150000",
                     appointmentId = "MED-${System.currentTimeMillis() % 10000}",
                     onConfirm = {
                         showQRDialog = false
-                        appointmentViewModel.resetState()
-                        Toast.makeText(context, "Đã ghi nhận thanh toán thành công!", Toast.LENGTH_LONG).show()
-                        onBack()
+                        appointmentViewModel.confirmAppointmentStatus("PAID")
+                        showSuccessDialog = true
                     },
                     onDismiss = {
                         showQRDialog = false
+                        appointmentViewModel.cancelPendingAppointment()
                         appointmentViewModel.resetState()
+                        appointmentViewModel.getSchedulesAndAppointments(doctor.id, selectedDate.fullDate)
+                        Toast.makeText(context, "Đã hủy giao dịch", Toast.LENGTH_SHORT).show()
                     }
                 )
             }
 
-            // --- GIAO DIỆN DIALOG THÔNG BÁO TRÙNG LỊCH ---
             if (showConflictDialog) {
                 AlertDialog(
                     onDismissRequest = { showConflictDialog = false },
@@ -169,7 +197,6 @@ fun BookingScreen(
             ) {
                 DoctorSimpleInfo(doctor)
 
-                // Chọn Ngày
                 Column(modifier = Modifier.padding(16.dp)) {
                     Text("Ngày khám *", fontWeight = FontWeight.Bold, fontSize = 16.sp)
                     Spacer(modifier = Modifier.height(8.dp))
@@ -188,7 +215,6 @@ fun BookingScreen(
                     }
                 }
 
-                // Chọn Giờ
                 Column(modifier = Modifier.padding(horizontal = 16.dp)) {
                     Text("Giờ khám *", fontWeight = FontWeight.Bold, fontSize = 16.sp)
                     Spacer(modifier = Modifier.height(12.dp))
@@ -228,7 +254,6 @@ fun BookingScreen(
                     )
                 }
 
-                // CHỌN PHƯƠNG THỨC THANH TOÁN
                 Column(modifier = Modifier.padding(16.dp)) {
                     Text("Phương thức thanh toán *", fontWeight = FontWeight.Bold, fontSize = 16.sp)
                     Spacer(modifier = Modifier.height(12.dp))
@@ -240,13 +265,12 @@ fun BookingScreen(
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                     PaymentMethodOption(
-                        title = "Quét mã QR (VietQR / MoMo / ZaloPay)",
+                        title = "Quét mã QR (VietQR / MoMo)",
                         isSelected = selectedPaymentMethod == "QR",
                         onClick = { selectedPaymentMethod = "QR" }
                     )
                 }
 
-                // Lý do khám
                 Column(modifier = Modifier.padding(16.dp)) {
                     OutlinedTextField(
                         value = reason,
@@ -264,7 +288,6 @@ fun BookingScreen(
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // Nút Xác nhận
                 Button(
                     onClick = {
                         if (selectedTimeSlot != null) {
@@ -272,12 +295,12 @@ fun BookingScreen(
                             val utcDateTime = TimeUtils.convertLocalToUtcString(selectedDate.fullDate, startTime)
                             if (utcDateTime != null) {
                                 val newAppointment = Appointment(
-                                    patientId = "PATIENT_001", // Thay bằng ID user thật khi ráp code
+                                    patientId = "PATIENT_001",
                                     doctorId = doctor.id,
                                     doctorName = doctor.name,
                                     dateTimeUtc = utcDateTime,
                                     reason = reason,
-                                    status = "PENDING" // Trạng thái chờ thanh toán
+                                    status = "PENDING"
                                 )
                                 appointmentViewModel.bookAppointment(newAppointment)
                             }
@@ -304,8 +327,6 @@ fun BookingScreen(
         }
     }
 }
-
-// --- CÁC COMPONENT PHỤ TRỢ ---
 
 @Composable
 fun PaymentMethodOption(title: String, isSelected: Boolean, onClick: () -> Unit) {
@@ -334,7 +355,7 @@ fun PaymentWebViewContent(url: String, onSuccess: () -> Unit, onCancel: () -> Un
     AndroidView(
         factory = { ctx ->
             WebView(ctx).apply {
-                settings.javaScriptEnabled = true // Cho phép chạy JS trên trang thanh toán
+                settings.javaScriptEnabled = true
                 webViewClient = object : WebViewClient() {
                     override fun shouldOverrideUrlLoading(v: WebView?, r: WebResourceRequest?): Boolean {
                         val u = r?.url.toString()
