@@ -6,6 +6,7 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Environment
 import android.widget.Toast
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
@@ -19,7 +20,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
-import androidx.compose.foundation.BorderStroke
+import kotlinx.coroutines.delay
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -35,6 +36,43 @@ fun PaymentQRDialog(
     var expanded by remember { mutableStateOf(false) }
     // State lưu tên ngân hàng đang được chọn
     var selectedBankText by remember { mutableStateOf("Chọn ngân hàng của bạn...") }
+
+    // --- STATES CHO MOCKING (GIẢ LẬP) ---
+    var timeLeft by remember { mutableIntStateOf(10 * 60) } // Đếm ngược 10 phút
+    var isChecking by remember { mutableStateOf(false) } // Trạng thái Loading kiểm tra giao dịch
+    var attemptCount by remember { mutableIntStateOf(0) } // Đếm số lần bấm nút để chạy kịch bản Demo
+
+    // 1. Kịch bản Đếm ngược thời gian
+    LaunchedEffect(key1 = timeLeft, key2 = isChecking) {
+        if (!isChecking && timeLeft > 0) {
+            delay(1000L)
+            timeLeft--
+        } else if (timeLeft == 0) {
+            Toast.makeText(context, "Đã hết thời gian thanh toán!", Toast.LENGTH_LONG).show()
+            onDismiss() // Hết giờ tự động đóng Dialog
+        }
+    }
+
+    // 2. Kịch bản Kiểm tra giao dịch (Mocking API)
+    LaunchedEffect(key1 = isChecking) {
+        if (isChecking) {
+            if (attemptCount == 1) {
+                // LẦN BẤM ĐẦU TIÊN: Giả lập mạng chậm 3s và báo lỗi (Chưa nhận được tiền)
+                delay(3000L)
+                Toast.makeText(context, "Chưa tìm thấy giao dịch. Vui lòng đợi thêm vài giây và thử lại!", Toast.LENGTH_LONG).show()
+                isChecking = false // Tắt loading để cho phép bấm lại
+            } else {
+                // LẦN BẤM THỨ 2 TRỞ ĐI: Giả lập check nhanh 2s và báo Thành công
+                delay(2000L)
+                onConfirm() // Gọi hàm thành công để hiển thị Popup bên BookingScreen
+            }
+        }
+    }
+
+    // Format hiển thị thời gian (MM:SS)
+    val minutes = timeLeft / 60
+    val seconds = timeLeft % 60
+    val timeString = String.format("%02d:%02d", minutes, seconds)
 
     val bankId = "MB"
     val accountNo = "0123456789"
@@ -60,7 +98,7 @@ fun PaymentQRDialog(
     )
 
     AlertDialog(
-        onDismissRequest = onDismiss,
+        onDismissRequest = { if (!isChecking) onDismiss() }, // Chặn tắt Dialog khi đang Loading
         title = {
             Text(
                 "Thanh toán qua VietQR",
@@ -74,6 +112,21 @@ fun PaymentQRDialog(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
+                // HIỂN THỊ THỜI GIAN ĐẾM NGƯỢC
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFFFFF3E0)),
+                    shape = RoundedCornerShape(8.dp),
+                    modifier = Modifier.padding(bottom = 8.dp)
+                ) {
+                    Text(
+                        text = "Vui lòng thanh toán trong: $timeString",
+                        color = Color(0xFFE65100),
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 13.sp,
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                    )
+                }
+
                 Text("Quét mã hoặc chọn ứng dụng bên dưới", fontSize = 14.sp, textAlign = TextAlign.Center)
                 Spacer(modifier = Modifier.height(16.dp))
 
@@ -96,7 +149,8 @@ fun PaymentQRDialog(
                     onClick = { downloadQRImage(context, qrUrl) },
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(8.dp),
-                    border = BorderStroke(1.dp, Color(0xFF2563EB))
+                    border = BorderStroke(1.dp, Color(0xFF2563EB)),
+                    enabled = !isChecking // Khóa nút khi đang kiểm tra giao dịch
                 ) {
                     Text("⬇️ Tải ảnh QR xuống máy", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color(0xFF2563EB))
                 }
@@ -107,7 +161,7 @@ fun PaymentQRDialog(
                 Spacer(modifier = Modifier.height(8.dp))
 
                 // === NÚT MOMO ===
-                PaymentAppButton("Mở bằng MoMo") {
+                PaymentAppButton("Mở bằng MoMo", isEnabled = !isChecking) {
                     saveQRAndOpenApp(
                         context = context,
                         imageUrl = qrUrl,
@@ -121,12 +175,13 @@ fun PaymentQRDialog(
                 // === DROPDOWN MENU NGÂN HÀNG ===
                 ExposedDropdownMenuBox(
                     expanded = expanded,
-                    onExpandedChange = { expanded = !expanded }
+                    onExpandedChange = { if (!isChecking) expanded = !expanded }
                 ) {
                     OutlinedTextField(
                         value = selectedBankText,
                         onValueChange = {},
                         readOnly = true,
+                        enabled = !isChecking, // Khóa khi đang check
                         trailingIcon = {
                             ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded)
                         },
@@ -158,26 +213,43 @@ fun PaymentQRDialog(
             }
         },
         confirmButton = {
-            Button(onClick = onConfirm, modifier = Modifier.fillMaxWidth()) {
-                Text("Tôi đã chuyển khoản thành công")
+            Button(
+                onClick = {
+                    attemptCount++ // Tăng biến đếm để kích hoạt kịch bản demo
+                    isChecking = true // Bật vòng xoay loading
+                },
+                modifier = Modifier.fillMaxWidth().height(48.dp),
+                enabled = !isChecking,
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2563EB))
+            ) {
+                if (isChecking) {
+                    CircularProgressIndicator(color = Color.White, modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Đang kiểm tra GD...")
+                } else {
+                    Text("Tôi đã chuyển khoản")
+                }
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss, modifier = Modifier.fillMaxWidth()) {
-                Text("Hủy giao dịch", color = Color.Gray)
+            if (!isChecking) {
+                TextButton(onClick = onDismiss, modifier = Modifier.fillMaxWidth()) {
+                    Text("Hủy giao dịch", color = Color.Gray)
+                }
             }
         }
     )
 }
 
 @Composable
-fun PaymentAppButton(appName: String, onClick: () -> Unit) {
+fun PaymentAppButton(appName: String, isEnabled: Boolean = true, onClick: () -> Unit) {
     Button(
         onClick = onClick,
         shape = RoundedCornerShape(8.dp),
         colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFF1F5F9), contentColor = Color(0xFF1E293B)),
         modifier = Modifier.fillMaxWidth(),
-        contentPadding = PaddingValues(vertical = 12.dp)
+        contentPadding = PaddingValues(vertical = 12.dp),
+        enabled = isEnabled
     ) {
         Text(appName, fontSize = 14.sp, fontWeight = FontWeight.Bold)
     }
