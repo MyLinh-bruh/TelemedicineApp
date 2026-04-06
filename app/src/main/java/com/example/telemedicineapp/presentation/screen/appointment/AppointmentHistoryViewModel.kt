@@ -18,7 +18,7 @@ import javax.inject.Inject
 
 @HiltViewModel
 class AppointmentHistoryViewModel @Inject constructor(
-    private val tokenManager: TokenManager // Inject TokenManager
+    private val tokenManager: TokenManager
 ) : ViewModel() {
 
     private val db = FirebaseFirestore.getInstance()
@@ -30,7 +30,6 @@ class AppointmentHistoryViewModel @Inject constructor(
     val isLoading: StateFlow<Boolean> = _isLoading
 
     init {
-        // LẤY EMAIL TỪ BỘ NHỚ MÁY ĐỂ LÀM KHÓA TÌM KIẾM
         val currentUserEmail = tokenManager.getEmail() ?: ""
         if (currentUserEmail.isNotEmpty()) {
             fetchMyAppointments(currentUserEmail)
@@ -44,7 +43,6 @@ class AppointmentHistoryViewModel @Inject constructor(
         viewModelScope.launch {
             _isLoading.value = true
 
-            // Lọc trên Firestore: Chỉ lấy những lịch hẹn mà patientId = email của mình
             db.collection("Appointments")
                 .whereEqualTo("patientId", email)
                 .addSnapshotListener { snapshot, error ->
@@ -64,7 +62,8 @@ class AppointmentHistoryViewModel @Inject constructor(
                                     doctorName = doc.getString("doctorName") ?: "Bác sĩ",
                                     dateTimeUtc = doc.getString("dateTimeUtc") ?: "",
                                     reason = doc.getString("reason") ?: "",
-                                    status = doc.getString("status") ?: "PENDING"
+                                    status = doc.getString("status") ?: "PENDING",
+                                    createdAt = doc.getLong("createdAt") ?: System.currentTimeMillis()
                                 )
                             } catch (e: Exception) {
                                 null
@@ -77,7 +76,7 @@ class AppointmentHistoryViewModel @Inject constructor(
         }
     }
 
-    // Xử lý hủy lịch hẹn
+    // 🌟 Hàm 1: Hủy đặt lịch (Chỉ đổi status, dùng cho PAID)
     fun cancelAppointment(appointmentId: String) {
         viewModelScope.launch {
             try {
@@ -91,7 +90,32 @@ class AppointmentHistoryViewModel @Inject constructor(
         }
     }
 
-    // Hàm hỗ trợ format giờ UTC
+    // 🌟 Hàm 2: Xóa luôn lịch hẹn (Xóa Document, dùng cho PENDING)
+    fun deleteAppointment(appointmentId: String) {
+        viewModelScope.launch {
+            try {
+                db.collection("Appointments").document(appointmentId)
+                    .delete()
+                    .await()
+                Log.d("HistoryVM", "Đã xóa vĩnh viễn lịch hẹn chưa thanh toán: $appointmentId")
+            } catch (e: Exception) {
+                Log.e("HistoryVM", "Lỗi khi xóa lịch hẹn: ", e)
+            }
+        }
+    }
+
+    fun confirmPayment(appointmentId: String) {
+        viewModelScope.launch {
+            try {
+                db.collection("Appointments").document(appointmentId)
+                    .update("status", "PAID")
+                    .await()
+            } catch (e: Exception) {
+                Log.e("HistoryVM", "Lỗi khi xác nhận thanh toán: ", e)
+            }
+        }
+    }
+
     fun formatDateTime(utcString: String): String {
         return try {
             val utcFormat = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.getDefault())

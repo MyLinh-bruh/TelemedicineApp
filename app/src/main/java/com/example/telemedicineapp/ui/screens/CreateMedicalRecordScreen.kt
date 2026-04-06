@@ -1,18 +1,32 @@
 package com.example.telemedicineapp.ui.screens
 
+import android.widget.Toast
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.telemedicineapp.ui.components.MedicalRecordForm
 import com.example.telemedicineapp.ui.components.PatientInfoForm
+import com.google.firebase.firestore.FirebaseFirestore
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.tasks.await
 
 @Composable
-fun CreateMedicalRecordScreen() {
+fun CreateMedicalRecordScreen(
+    patientId: String = "", // Bổ sung tham số để xác định bệnh nhân
+    doctorId: String = "",  // Bổ sung tham số để xác định bác sĩ
+    onBack: () -> Unit = {}
+) {
+    val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
+    val db = FirebaseFirestore.getInstance()
+
     // State cho Thông tin bệnh nhân
     var name by remember { mutableStateOf("") }
     var age by remember { mutableStateOf("") }
@@ -24,6 +38,8 @@ fun CreateMedicalRecordScreen() {
     var reason by remember { mutableStateOf("") }
     var symptoms by remember { mutableStateOf("") }
     var diagnosis by remember { mutableStateOf("") }
+
+    var isSaving by remember { mutableStateOf(false) }
 
     Column(
         modifier = Modifier
@@ -57,14 +73,57 @@ fun CreateMedicalRecordScreen() {
         // Nút Lưu
         Button(
             onClick = {
-                // Kiểm tra in ra logcat xem dữ liệu đã ăn chưa
-                println("Đã lưu bệnh án: $name - Chẩn đoán: $diagnosis")
+                if (patientId.isEmpty() || doctorId.isEmpty()) {
+                    Toast.makeText(context, "Lỗi: Không tìm thấy ID bệnh nhân/Bác sĩ", Toast.LENGTH_SHORT).show()
+                    return@Button
+                }
+
+                coroutineScope.launch {
+                    isSaving = true
+                    try {
+                        // 1. Lưu hồ sơ bệnh án (Tạo record mới trên Firebase)
+                        val recordData = hashMapOf(
+                            "patientId" to patientId,
+                            "doctorId" to doctorId,
+                            "patientName" to name,
+                            "diagnosis" to diagnosis,
+                            "symptoms" to symptoms,
+                            "reason" to reason
+                            // Thêm các trường khác nếu cần
+                        )
+                        db.collection("MedicalRecords").add(recordData).await()
+
+                        // 2. 🌟 TỰ ĐỘNG ĐỔI TRẠNG THÁI LỊCH HẸN SANG ĐÃ KHÁM 🌟
+                        val snapshot = db.collection("Appointments")
+                            .whereEqualTo("patientId", patientId)
+                            .whereEqualTo("doctorId", doctorId)
+                            .whereEqualTo("status", "PAID")
+                            .get().await()
+
+                        for (doc in snapshot.documents) {
+                            db.collection("Appointments").document(doc.id)
+                                .update("status", "COMPLETED").await()
+                        }
+
+                        Toast.makeText(context, "Đã lưu Bệnh án & Cập nhật Lịch hẹn thành công!", Toast.LENGTH_LONG).show()
+                        onBack()
+                    } catch (e: Exception) {
+                        Toast.makeText(context, "Lỗi: ${e.message}", Toast.LENGTH_SHORT).show()
+                    } finally {
+                        isSaving = false
+                    }
+                }
             },
             modifier = Modifier
                 .fillMaxWidth()
-                .height(50.dp)
+                .height(50.dp),
+            enabled = !isSaving
         ) {
-            Text("Lưu Hồ Sơ & Bệnh Án")
+            if (isSaving) {
+                CircularProgressIndicator(color = Color.White, modifier = Modifier.size(24.dp))
+            } else {
+                Text("Lưu Hồ Sơ & Đóng Lịch Hẹn")
+            }
         }
 
         Spacer(modifier = Modifier.height(32.dp))
