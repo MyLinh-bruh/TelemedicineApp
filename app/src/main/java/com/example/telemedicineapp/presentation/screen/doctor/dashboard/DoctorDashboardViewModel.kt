@@ -9,6 +9,7 @@ import com.example.telemedicineapp.model.User
 import com.example.telemedicineapp.model.Role
 import com.example.telemedicineapp.model.DoctorStatus
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.SetOptions // 🌟 IMPORT BÙA HỘ MỆNH VÀO ĐÂY
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -43,15 +44,6 @@ class DoctorDashboardViewModel @Inject constructor() : ViewModel() {
                                 hospitalName = entity.hospitalName,
                                 imageUrl = entity.imageUrl,
                                 certificateUrl = entity.certificateUrl,
-                                // 🌟 ĐÃ THÊM ĐẦY ĐỦ CÁC TRƯỜNG MỚI
-                                phone = entity.phone,
-                                address = entity.address,
-                                gender = entity.gender,
-                                description = entity.description,
-                                bankName = entity.bankName,
-                                bankAccountNumber = entity.bankAccountNumber,
-                                bloodType = entity.bloodType,
-                                medicalHistory = entity.medicalHistory
                             )
                         }
                     } catch (e: Exception) {
@@ -62,7 +54,8 @@ class DoctorDashboardViewModel @Inject constructor() : ViewModel() {
     }
 
     fun updateProfile(user: User, onComplete: (Boolean) -> Unit) {
-        db.collection("Users").document(user.id).set(user)
+        // 🌟 FIX LỖI MẤT PASSWORD: Dùng SetOptions.merge() để giữ nguyên các cột cũ không bị ghi đè
+        db.collection("Users").document(user.id).set(user, SetOptions.merge())
             .addOnCompleteListener { onComplete(it.isSuccessful) }
     }
 
