@@ -1,18 +1,24 @@
 package com.example.telemedicineapp.ui.components
 
+import android.graphics.BitmapFactory
+import android.util.Base64
 import androidx.compose.animation.core.*
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -21,6 +27,8 @@ import com.example.telemedicineapp.model.User
 // --- 1. ITEM HIỂN THỊ BÁC SĨ THẬT ---
 @Composable
 fun DoctorItem(doctor: User, onClick: () -> Unit) {
+    val themeColor = Color(0xFF1976D2) // Đã chuyển sang màu xanh dương
+
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -31,23 +39,44 @@ fun DoctorItem(doctor: User, onClick: () -> Unit) {
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
         Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-            // Avatar Initial (Chữ cái đầu của tên)
+            // Avatar (Giải mã Base64 hoặc hiện chữ cái đầu)
             Box(
                 modifier = Modifier
                     .size(65.dp)
                     .clip(RoundedCornerShape(18.dp))
-                    .background(Color(0xFF2563EB)),
+                    .background(themeColor),
                 contentAlignment = Alignment.Center
             ) {
-                // Lấy chữ cái đầu của tên cuối cùng (VD: Nguyễn Văn A -> lấy chữ A)
-                val initial = doctor.name.trim().split(" ").lastOrNull()?.take(1)?.uppercase() ?: "BS"
+                if (doctor.imageUrl.isNotBlank()) {
+                    val bitmap = remember(doctor.imageUrl) {
+                        try {
+                            val cleanBase64 = if (doctor.imageUrl.contains(",")) {
+                                doctor.imageUrl.substringAfter(",")
+                            } else {
+                                doctor.imageUrl
+                            }
+                            val imageBytes = Base64.decode(cleanBase64, Base64.DEFAULT)
+                            BitmapFactory.decodeByteArray(imageBytes, 0, imageBytes.size)
+                        } catch (e: Exception) {
+                            null
+                        }
+                    }
 
-                Text(
-                    text = initial,
-                    color = Color.White,
-                    fontSize = 22.sp,
-                    fontWeight = FontWeight.Black
-                )
+                    if (bitmap != null) {
+                        Image(
+                            bitmap = bitmap.asImageBitmap(),
+                            contentDescription = "Avatar của ${doctor.name}",
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = ContentScale.Crop
+                        )
+                    } else {
+                        val initial = doctor.name.trim().split(" ").lastOrNull()?.take(1)?.uppercase() ?: "BS"
+                        Text(text = initial, color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Black)
+                    }
+                } else {
+                    val initial = doctor.name.trim().split(" ").lastOrNull()?.take(1)?.uppercase() ?: "BS"
+                    Text(text = initial, color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Black)
+                }
             }
 
             Spacer(modifier = Modifier.width(16.dp))
@@ -61,7 +90,7 @@ fun DoctorItem(doctor: User, onClick: () -> Unit) {
                 }
 
                 val specialtyText = doctor.specialty.ifEmpty { "ĐA KHOA" }
-                Text(text = specialtyText.uppercase(), color = Color(0xFF2563EB), fontSize = 10.sp, fontWeight = FontWeight.Black)
+                Text(text = specialtyText.uppercase(), color = themeColor, fontSize = 10.sp, fontWeight = FontWeight.Black)
 
                 val hospitalText = doctor.hospitalName.ifEmpty { "Chưa cập nhật bệnh viện" }
                 Text(text = "🏥 $hospitalText", color = Color.Gray, fontSize = 11.sp)

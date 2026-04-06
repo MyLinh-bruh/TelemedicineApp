@@ -34,11 +34,18 @@ fun AdminHomeScreen(
     onDoctorClick: (User) -> Unit,
     onApproveClick: (User) -> Unit,
     onRejectClick: (User) -> Unit,
-    onLogout: () -> Unit
+    onLogout: () -> Unit,
+    // Thêm tham số callback để xử lý xóa hàng loạt
+    onDeleteDoctorsClick: (List<String>) -> Unit = {}
 ) {
     var selectedTab by remember { mutableIntStateOf(0) }
     var selectedRequest by remember { mutableStateOf<User?>(null) }
     var searchQuery by remember { mutableStateOf("") }
+
+    // Trạng thái lưu trữ danh sách ID bác sĩ được chọn để xóa
+    val selectedDoctorIds = remember { mutableStateListOf<String>() }
+    // Trạng thái ẩn/hiện hộp thoại xác nhận xóa
+    var showDeleteConfirmDialog by remember { mutableStateOf(false) }
 
     val approvedDoctors = allDoctors.filter { it.doctorStatus.toString() == "APPROVED" }
     val pendingRequests = allDoctors.filter { it.doctorStatus.toString() == "PENDING" }
@@ -46,6 +53,8 @@ fun AdminHomeScreen(
     val filteredDoctors = approvedDoctors.filter { doctor ->
         doctor.name.contains(searchQuery, ignoreCase = true)
     }
+
+    val pinkThemeColor = Color(0xFFE91E63) // Màu hồng chủ đạo
 
     Scaffold(
         containerColor = Color(0xFFF8FAFC),
@@ -82,25 +91,107 @@ fun AdminHomeScreen(
                 // DANH SÁCH BÁC SĨ ĐÃ DUYỆT
                 LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp)) {
                     item {
-                        OutlinedTextField(
-                            value = searchQuery,
-                            onValueChange = { searchQuery = it },
+                        // Thanh tìm kiếm và nút xóa
+                        Row(
                             modifier = Modifier.fillMaxWidth(),
-                            placeholder = { Text("Tìm tên bác sĩ...") },
-                            leadingIcon = { Icon(Icons.Default.Search, null) },
-                            shape = RoundedCornerShape(12.dp),
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedContainerColor = Color.White,
-                                unfocusedContainerColor = Color.White
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            OutlinedTextField(
+                                value = searchQuery,
+                                onValueChange = { searchQuery = it },
+                                modifier = Modifier.weight(1f),
+                                placeholder = { Text("Tìm tên bác sĩ...") },
+                                leadingIcon = { Icon(Icons.Default.Search, null) },
+                                shape = RoundedCornerShape(12.dp),
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedContainerColor = Color.White,
+                                    unfocusedContainerColor = Color.White
+                                )
                             )
-                        )
+
+                            Spacer(Modifier.width(12.dp))
+
+                            // Nút xóa hàng loạt
+                            IconButton(
+                                onClick = {
+                                    if (selectedDoctorIds.isNotEmpty()) {
+                                        showDeleteConfirmDialog = true
+                                    }
+                                },
+                                modifier = Modifier
+                                    .size(56.dp) // Cùng chiều cao tương đối với OutlinedTextField
+                                    .background(color = pinkThemeColor.copy(alpha = 0.1f), shape = RoundedCornerShape(12.dp))
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Delete,
+                                    contentDescription = "Xóa bác sĩ",
+                                    tint = if (selectedDoctorIds.isNotEmpty()) pinkThemeColor else Color.Gray
+                                )
+                            }
+                        }
                         Spacer(Modifier.height(16.dp))
                     }
                     items(filteredDoctors) { doctor ->
-                        DoctorItem(doctor, onClick = { onDoctorClick(doctor) })
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            // Checkbox để chọn bác sĩ
+                            Checkbox(
+                                checked = selectedDoctorIds.contains(doctor.id),
+                                onCheckedChange = { isChecked ->
+                                    if (isChecked) {
+                                        selectedDoctorIds.add(doctor.id)
+                                    } else {
+                                        selectedDoctorIds.remove(doctor.id)
+                                    }
+                                },
+                                colors = CheckboxDefaults.colors(checkedColor = pinkThemeColor)
+                            )
+
+                            // Doctor Item
+                            Box(modifier = Modifier.weight(1f)) {
+                                DoctorItem(doctor, onClick = { onDoctorClick(doctor) })
+                            }
+                        }
                         Spacer(Modifier.height(8.dp))
                     }
                 }
+
+                // Hộp thoại xác nhận xóa
+                if (showDeleteConfirmDialog) {
+                    AlertDialog(
+                        onDismissRequest = { showDeleteConfirmDialog = false },
+                        title = {
+                            Text(text = "Xác nhận xóa tài khoản")
+                        },
+                        text = {
+                            Text(text = "Bạn có chắc chắn muốn xóa vĩnh viễn ${selectedDoctorIds.size} bác sĩ đã chọn? Dữ liệu sẽ bị xóa khỏi cơ sở dữ liệu và không thể khôi phục.")
+                        },
+                        confirmButton = {
+                            TextButton(
+                                onClick = {
+                                    // Gọi hàm xóa và truyền danh sách ID
+                                    onDeleteDoctorsClick(selectedDoctorIds.toList())
+
+                                    // Xóa xong thì làm sạch danh sách đã chọn và ẩn dialog
+                                    selectedDoctorIds.clear()
+                                    showDeleteConfirmDialog = false
+                                }
+                            ) {
+                                Text("Xóa vĩnh viễn", color = pinkThemeColor)
+                            }
+                        },
+                        dismissButton = {
+                            TextButton(
+                                onClick = { showDeleteConfirmDialog = false }
+                            ) {
+                                Text("Hủy", color = Color.Gray)
+                            }
+                        }
+                    )
+                }
+
             } else {
                 // DANH SÁCH CHỜ DUYỆT (PENDING)
                 ApprovalListView(
@@ -230,12 +321,8 @@ fun DetailItem(label: String, value: String) {
     }
 }
 
-// 🌟 HÀM MỚI: Dịch ngược văn bản khổng lồ thành Hình ảnh
-// 🌟 HÀM MỚI: Dịch ngược văn bản khổng lồ thành Hình ảnh
-// 🌟 HÀM MỚI (CHUẨN COMPOSE): Dịch ngược văn bản khổng lồ thành Hình ảnh
 @Composable
 fun Base64Image(base64String: String, modifier: Modifier = Modifier) {
-    // Nếu chuỗi rỗng thì vẽ luôn cái hộp xám, không cần giải mã
     if (base64String.isBlank()) {
         Box(modifier = modifier.background(Color.LightGray), contentAlignment = Alignment.Center) {
             Text("Không có ảnh", color = Color.DarkGray)
@@ -243,7 +330,6 @@ fun Base64Image(base64String: String, modifier: Modifier = Modifier) {
         return
     }
 
-    // BƯỚC 1: Dịch ngược ảnh một cách âm thầm (không đụng tới UI ở đây)
     val decodedBitmap = remember(base64String) {
         try {
             val cleanBase64 = if (base64String.contains(",")) {
@@ -254,11 +340,10 @@ fun Base64Image(base64String: String, modifier: Modifier = Modifier) {
             val imageBytes = Base64.decode(cleanBase64, Base64.DEFAULT)
             BitmapFactory.decodeByteArray(imageBytes, 0, imageBytes.size)
         } catch (e: Exception) {
-            null // Nếu lỗi thì trả về null
+            null
         }
     }
 
-    // BƯỚC 2: Vẽ UI dựa trên kết quả dịch được
     if (decodedBitmap != null) {
         Image(
             bitmap = decodedBitmap.asImageBitmap(),
