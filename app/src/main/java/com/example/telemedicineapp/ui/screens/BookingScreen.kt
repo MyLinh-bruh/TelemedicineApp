@@ -5,6 +5,7 @@ import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.Toast
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -23,7 +24,10 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -415,7 +419,46 @@ fun TimeSlotItem(slot: String, isSelected: Boolean, isBooked: Boolean, isBusy: B
 fun DoctorSimpleInfo(doctor: User) {
     Surface(modifier = Modifier.fillMaxWidth().padding(16.dp), color = Color.White, shape = RoundedCornerShape(12.dp), shadowElevation = 1.dp) {
         Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-            Box(modifier = Modifier.size(50.dp).background(Color(0xFFEBF8FF), CircleShape), contentAlignment = Alignment.Center) { Text("👨‍⚕️", fontSize = 24.sp) }
+
+            Box(
+                modifier = Modifier
+                    .size(50.dp)
+                    .clip(CircleShape)
+                    .background(Color(0xFF2563EB)), // Màu nền xanh dương
+                contentAlignment = Alignment.Center
+            ) {
+                if (doctor.imageUrl.isNotBlank()) {
+                    val bitmap = remember(doctor.imageUrl) {
+                        try {
+                            val cleanBase64 = if (doctor.imageUrl.contains(",")) {
+                                doctor.imageUrl.substringAfter(",")
+                            } else {
+                                doctor.imageUrl
+                            }
+                            val imageBytes = android.util.Base64.decode(cleanBase64, android.util.Base64.DEFAULT)
+                            android.graphics.BitmapFactory.decodeByteArray(imageBytes, 0, imageBytes.size)
+                        } catch (e: Exception) {
+                            null
+                        }
+                    }
+
+                    if (bitmap != null) {
+                        Image(
+                            bitmap = bitmap.asImageBitmap(), // <-- ĐÃ SỬA CHUẨN CÚ PHÁP
+                            contentDescription = "Avatar của ${doctor.name}",
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = ContentScale.Crop // <-- ĐÃ SỬA CHUẨN CÚ PHÁP
+                        )
+                    } else {
+                        val initial = doctor.name.trim().split(" ").lastOrNull()?.take(1)?.uppercase() ?: "BS"
+                        Text(text = initial, color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                    }
+                } else {
+                    val initial = doctor.name.trim().split(" ").lastOrNull()?.take(1)?.uppercase() ?: "BS"
+                    Text(text = initial, color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                }
+            }
+
             Spacer(modifier = Modifier.width(16.dp))
             Column {
                 Text(doctor.name, fontWeight = FontWeight.Bold, fontSize = 18.sp, color = Color(0xFF1E3A8A))
