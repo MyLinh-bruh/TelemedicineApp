@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -40,6 +41,7 @@ import com.example.telemedicineapp.utils.TimeUtils
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun BookingScreen(
+    patient: User, 
     doctor: User,
     onBack: () -> Unit,
     appointmentViewModel: AppointmentViewModel = hiltViewModel()
@@ -68,15 +70,9 @@ fun BookingScreen(
     LaunchedEffect(bookingState) {
         when (bookingState) {
             is BookingState.Success -> {
-                if (selectedPaymentMethod == "STRIPE") {
-                    showPaymentWebView = true
-                } else {
-                    showQRDialog = true
-                }
+                if (selectedPaymentMethod == "STRIPE") showPaymentWebView = true else showQRDialog = true
             }
-            is BookingState.Conflict -> {
-                showConflictDialog = true
-            }
+            is BookingState.Conflict -> showConflictDialog = true
             is BookingState.Error -> {
                 Toast.makeText(context, (bookingState as BookingState.Error).message, Toast.LENGTH_SHORT).show()
                 appointmentViewModel.resetState()
@@ -94,7 +90,6 @@ fun BookingScreen(
                 showSuccessDialog = true
             },
             onCancel = {
-                Toast.makeText(context, "Thanh toán đã bị hủy", Toast.LENGTH_SHORT).show()
                 showPaymentWebView = false
                 appointmentViewModel.cancelPendingAppointment()
                 appointmentViewModel.resetState()
@@ -114,6 +109,7 @@ fun BookingScreen(
             }
         ) { paddingValues ->
 
+            // Dialog Đặt lịch thành công
             if (showSuccessDialog) {
                 AlertDialog(
                     onDismissRequest = { },
@@ -126,7 +122,7 @@ fun BookingScreen(
                     },
                     text = {
                         Text(
-                            "Hệ thống đã ghi nhận thanh toán và lịch hẹn của bạn. Bạn có thể kiểm tra chi tiết trong mục 'Lịch hẹn của tôi'.",
+                            "Hệ thống đã ghi nhận lịch hẹn của bạn. Bạn có thể kiểm tra chi tiết trong mục 'Lịch hẹn'.",
                             textAlign = TextAlign.Center, fontSize = 14.sp
                         )
                     },
@@ -140,13 +136,14 @@ fun BookingScreen(
                             modifier = Modifier.fillMaxWidth(),
                             colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2563EB))
                         ) {
-                            Text("Quay lại Trang chủ", fontWeight = FontWeight.Bold)
+                            Text("Xác nhận", fontWeight = FontWeight.Bold)
                         }
                     },
                     shape = RoundedCornerShape(16.dp)
                 )
             }
 
+            // Dialog Quét mã QR
             if (showQRDialog) {
                 PaymentQRDialog(
                     amount = "150000",
@@ -166,25 +163,19 @@ fun BookingScreen(
                 )
             }
 
+            // Dialog Lỗi trùng lịch (Conflict)
             if (showConflictDialog) {
                 AlertDialog(
                     onDismissRequest = { showConflictDialog = false },
-                    title = { Text("Rất tiếc!", fontWeight = FontWeight.Bold) },
-                    text = { Text("Lịch này vừa có người đặt. Vui lòng chọn khung giờ khác!") },
+                    title = { Text("Trùng lịch hẹn", fontWeight = FontWeight.Bold) },
+                    text = { Text("Rất tiếc, khung giờ này vừa có người đặt. Vui lòng chọn khung giờ khác.") },
                     confirmButton = {
-                        Button(
-                            onClick = {
-                                showConflictDialog = false
-                                appointmentViewModel.resetState()
-                                appointmentViewModel.getSchedulesAndAppointments(doctor.id, selectedDate.fullDate)
-                                selectedTimeSlot = null
-                            },
-                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2563EB))
-                        ) {
-                            Text("Đồng ý")
-                        }
-                    },
-                    shape = RoundedCornerShape(16.dp)
+                        TextButton(onClick = { 
+                            showConflictDialog = false
+                            appointmentViewModel.resetState()
+                            appointmentViewModel.getSchedulesAndAppointments(doctor.id, selectedDate.fullDate)
+                        }) { Text("Đồng ý") }
+                    }
                 )
             }
 
@@ -197,69 +188,54 @@ fun BookingScreen(
             ) {
                 DoctorSimpleInfo(doctor)
 
+                // Chọn ngày khám
                 Column(modifier = Modifier.padding(16.dp)) {
-                    Text("Ngày khám *", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                    Text("Ngày khám *", fontWeight = FontWeight.Bold)
                     Spacer(modifier = Modifier.height(8.dp))
                     LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         items(availableDates) { dateItem ->
                             DateSelectorItem(
-                                item = dateItem,
-                                isSelected = selectedDate == dateItem,
-                                onClick = {
+                                item = dateItem, 
+                                isSelected = selectedDate == dateItem, 
+                                onClick = { 
                                     selectedDate = dateItem
-                                    selectedTimeSlot = null
+                                    selectedTimeSlot = null 
                                 }
                             )
                         }
-                        item { OtherDateButton() }
                     }
                 }
 
+                // Chọn giờ khám
                 Column(modifier = Modifier.padding(horizontal = 16.dp)) {
-                    Text("Giờ khám *", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                    Text("Giờ khám *", fontWeight = FontWeight.Bold)
                     Spacer(modifier = Modifier.height(12.dp))
-
-                    Text("Buổi sáng", fontWeight = FontWeight.SemiBold, color = Color.DarkGray, fontSize = 14.sp)
-                    Spacer(modifier = Modifier.height(8.dp))
-                    if (schedule?.morningSlots.isNullOrEmpty()) {
-                        Text("Không có lịch hẹn", fontSize = 12.sp, color = Color.Gray, modifier = Modifier.padding(vertical = 8.dp))
-                    } else {
-                        TimeSlotGrid(
-                            slots = schedule!!.morningSlots,
-                            selectedSlot = selectedTimeSlot,
-                            bookedSlots = bookedSlots,
-                            busySlots = schedule?.busySlots ?: emptyList()
-                        ) { selectedTimeSlot = it }
-                    }
-
+                    
+                    Text("Buổi sáng", fontWeight = FontWeight.SemiBold, color = Color.Gray, fontSize = 14.sp)
+                    TimeSlotGrid(
+                        slots = schedule?.morningSlots ?: emptyList(), 
+                        selectedSlot = selectedTimeSlot, 
+                        bookedSlots = bookedSlots, 
+                        busySlots = schedule?.busySlots ?: emptyList()
+                    ) { selectedTimeSlot = it }
+                    
                     Spacer(modifier = Modifier.height(16.dp))
-
-                    Text("Buổi chiều", fontWeight = FontWeight.SemiBold, color = Color.DarkGray, fontSize = 14.sp)
-                    Spacer(modifier = Modifier.height(8.dp))
-                    if (schedule?.afternoonSlots.isNullOrEmpty()) {
-                        Text("Không có lịch hẹn", fontSize = 12.sp, color = Color.Gray, modifier = Modifier.padding(vertical = 8.dp))
-                    } else {
-                        TimeSlotGrid(
-                            slots = schedule!!.afternoonSlots,
-                            selectedSlot = selectedTimeSlot,
-                            bookedSlots = bookedSlots,
-                            busySlots = schedule?.busySlots ?: emptyList()
-                        ) { selectedTimeSlot = it }
-                    }
-
-                    Text(
-                        "Tất cả thời gian theo múi giờ Việt Nam GMT +7",
-                        color = Color.Gray, fontSize = 11.sp,
-                        modifier = Modifier.padding(top = 16.dp)
-                    )
+                    
+                    Text("Buổi chiều", fontWeight = FontWeight.SemiBold, color = Color.Gray, fontSize = 14.sp)
+                    TimeSlotGrid(
+                        slots = schedule?.afternoonSlots ?: emptyList(), 
+                        selectedSlot = selectedTimeSlot, 
+                        bookedSlots = bookedSlots, 
+                        busySlots = schedule?.busySlots ?: emptyList()
+                    ) { selectedTimeSlot = it }
                 }
 
+                // Chọn phương thức thanh toán
                 Column(modifier = Modifier.padding(16.dp)) {
                     Text("Phương thức thanh toán *", fontWeight = FontWeight.Bold, fontSize = 16.sp)
                     Spacer(modifier = Modifier.height(12.dp))
-
                     PaymentMethodOption(
-                        title = "Thẻ Quốc tế (Stripe Sandbox)",
+                        title = "Thẻ Quốc tế (Stripe)",
                         isSelected = selectedPaymentMethod == "STRIPE",
                         onClick = { selectedPaymentMethod = "STRIPE" }
                     )
@@ -271,6 +247,7 @@ fun BookingScreen(
                     )
                 }
 
+                // Lý do khám
                 Column(modifier = Modifier.padding(16.dp)) {
                     OutlinedTextField(
                         value = reason,
@@ -279,23 +256,21 @@ fun BookingScreen(
                         modifier = Modifier.fillMaxWidth(),
                         minLines = 3,
                         shape = RoundedCornerShape(12.dp),
-                        colors = OutlinedTextFieldDefaults.colors(
-                            unfocusedContainerColor = Color.White,
-                            focusedContainerColor = Color.White
-                        )
+                        colors = OutlinedTextFieldDefaults.colors(unfocusedContainerColor = Color.White)
                     )
                 }
-
-                Spacer(modifier = Modifier.height(16.dp))
 
                 Button(
                     onClick = {
                         if (selectedTimeSlot != null) {
                             val startTime = selectedTimeSlot!!.split(" - ")[0]
                             val utcDateTime = TimeUtils.convertLocalToUtcString(selectedDate.fullDate, startTime)
+                            val displayName = if (patient.name.isBlank()) "Bệnh nhân ẩn danh" else patient.name
+
                             if (utcDateTime != null) {
                                 val newAppointment = Appointment(
-                                    patientId = "PATIENT_001", // TODO: Thay bằng ID User thực tế sau
+                                    patientId = patient.id,
+                                    patientName = displayName,
                                     doctorId = doctor.id,
                                     doctorName = doctor.name,
                                     dateTimeUtc = utcDateTime,
@@ -306,34 +281,24 @@ fun BookingScreen(
                             }
                         }
                     },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp)
-                        .height(54.dp),
+                    modifier = Modifier.fillMaxWidth().padding(16.dp).height(54.dp),
                     shape = RoundedCornerShape(12.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = if (selectedTimeSlot != null) Color(0xFF2563EB) else Color.LightGray
-                    ),
+                    colors = ButtonDefaults.buttonColors(containerColor = if (selectedTimeSlot != null) Color(0xFF2563EB) else Color.LightGray),
                     enabled = selectedTimeSlot != null && bookingState !is BookingState.Loading
                 ) {
-                    if (bookingState is BookingState.Loading) {
-                        CircularProgressIndicator(color = Color.White, modifier = Modifier.size(24.dp))
-                    } else {
-                        Text("Xác nhận & Thanh toán", fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                    }
+                    Text("Xác nhận & Thanh toán", fontWeight = FontWeight.Bold)
                 }
-                Spacer(modifier = Modifier.height(32.dp))
             }
         }
     }
 }
 
+// --- CÁC COMPONENT PHỤ TRỢ ---
+
 @Composable
 fun PaymentMethodOption(title: String, isSelected: Boolean, onClick: () -> Unit) {
     Surface(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable { onClick() },
+        modifier = Modifier.fillMaxWidth().clickable { onClick() },
         shape = RoundedCornerShape(12.dp),
         color = if (isSelected) Color(0xFFEBF8FF) else Color.White,
         border = BorderStroke(2.dp, if (isSelected) Color(0xFF2563EB) else Color(0xFFE5E7EB))
@@ -346,6 +311,89 @@ fun PaymentMethodOption(title: String, isSelected: Boolean, onClick: () -> Unit)
             )
             Spacer(modifier = Modifier.width(12.dp))
             Text(title, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal)
+        }
+    }
+}
+
+@Composable
+fun TimeSlotGrid(slots: List<String>, selectedSlot: String?, bookedSlots: List<String>, busySlots: List<String>, onSlotSelected: (String) -> Unit) {
+    val rows = slots.chunked(3)
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        rows.forEach { rowSlots ->
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                rowSlots.forEach { slot ->
+                    TimeSlotItem(
+                        slot = slot, 
+                        isSelected = selectedSlot == slot, 
+                        isBooked = bookedSlots.contains(slot), 
+                        isBusy = busySlots.contains(slot), 
+                        modifier = Modifier.weight(1f), 
+                        onClick = { onSlotSelected(slot) }
+                    )
+                }
+                repeat(3 - rowSlots.size) { Spacer(modifier = Modifier.weight(1f)) }
+            }
+        }
+    }
+}
+
+@Composable
+fun TimeSlotItem(slot: String, isSelected: Boolean, isBooked: Boolean, isBusy: Boolean, modifier: Modifier, onClick: () -> Unit) {
+    val isDisable = isBooked || isBusy
+    val bgColor = when {
+        isBooked -> Color(0xFFFEE2E2)
+        isBusy -> Color(0xFFEEEEEE)
+        isSelected -> Color(0xFF3B82F6)
+        else -> Color.White
+    }
+    val textColor = when {
+        isBooked -> Color(0xFFDC2626)
+        isBusy -> Color.Gray
+        isSelected -> Color.White
+        else -> Color.Black
+    }
+
+    Surface(
+        modifier = modifier.height(55.dp).clickable(enabled = !isDisable) { onClick() },
+        color = bgColor,
+        shape = RoundedCornerShape(8.dp),
+        border = BorderStroke(1.dp, if (isSelected) Color(0xFF3B82F6) else Color(0xFFE5E7EB))
+    ) {
+        Box(contentAlignment = Alignment.Center) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(text = slot, color = textColor, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                if (isBooked) Text("Đã đặt", color = Color(0xFFDC2626), fontSize = 9.sp)
+                else if (isBusy) Text("Bận", color = Color.Gray, fontSize = 9.sp)
+            }
+        }
+    }
+}
+
+@Composable
+fun DoctorSimpleInfo(doctor: User) {
+    Surface(modifier = Modifier.fillMaxWidth().padding(16.dp), color = Color.White, shape = RoundedCornerShape(12.dp), shadowElevation = 1.dp) {
+        Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+            Box(modifier = Modifier.size(50.dp).background(Color(0xFFEBF8FF), CircleShape), contentAlignment = Alignment.Center) { Text("👨‍⚕️", fontSize = 24.sp) }
+            Spacer(modifier = Modifier.width(16.dp))
+            Column {
+                Text(doctor.name, fontWeight = FontWeight.Bold, fontSize = 18.sp, color = Color(0xFF1E3A8A))
+                Text(doctor.specialty, fontSize = 13.sp, color = Color.Gray)
+            }
+        }
+    }
+}
+
+@Composable
+fun DateSelectorItem(item: DateItem, isSelected: Boolean, onClick: () -> Unit) {
+    Surface(
+        modifier = Modifier.width(85.dp).height(65.dp).clickable { onClick() },
+        color = if (isSelected) Color(0xFFEBF8FF) else Color.White,
+        shape = RoundedCornerShape(8.dp),
+        border = BorderStroke(1.dp, if (isSelected) Color(0xFF3B82F6) else Color.LightGray)
+    ) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+            Text(item.displayDate, fontWeight = FontWeight.Bold, color = if (isSelected) Color(0xFF3B82F6) else Color.Black)
+            Text(item.displayDayOfWeek, fontSize = 11.sp, color = Color.Gray)
         }
     }
 }
@@ -369,166 +417,4 @@ fun PaymentWebViewContent(url: String, onSuccess: () -> Unit, onCancel: () -> Un
         },
         modifier = Modifier.fillMaxSize()
     )
-}
-
-@Composable
-fun TimeSlotGrid(
-    slots: List<String>,
-    selectedSlot: String?,
-    bookedSlots: List<String>,
-    busySlots: List<String>,
-    onSlotSelected: (String) -> Unit
-) {
-    val rows = slots.chunked(3)
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        rows.forEach { rowSlots ->
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                rowSlots.forEach { slot ->
-                    TimeSlotItem(
-                        slot = slot,
-                        isSelected = selectedSlot == slot,
-                        isBooked = bookedSlots.contains(slot),
-                        isBusy = busySlots.contains(slot),
-                        modifier = Modifier.weight(1f),
-                        onClick = { onSlotSelected(slot) }
-                    )
-                }
-                repeat(3 - rowSlots.size) { Spacer(modifier = Modifier.weight(1f)) }
-            }
-        }
-    }
-}
-
-@Composable
-fun TimeSlotItem(
-    slot: String,
-    isSelected: Boolean,
-    isBooked: Boolean,
-    isBusy: Boolean,
-    modifier: Modifier,
-    onClick: () -> Unit
-) {
-    // Nếu bị đặt (Booked) hoặc bị khóa từ phía BS (Busy) thì không cho click
-    val isDisable = isBooked || isBusy
-
-    // Thay đổi màu nền
-    val bgColor = when {
-        isBooked -> Color(0xFFFEE2E2) // Nền đỏ nhạt cảnh báo
-        isBusy -> Color(0xFFEEEEEE)
-        isSelected -> Color(0xFF3B82F6)
-        else -> Color.White
-    }
-
-    // Thay đổi màu chữ thời gian
-    val textColor = when {
-        isBooked -> Color(0xFFDC2626) // Chữ đỏ đậm
-        isBusy -> Color.Gray
-        isSelected -> Color.White
-        else -> Color.Black
-    }
-
-    // Thay đổi màu viền
-    val borderColor = when {
-        isBooked -> Color(0xFFFECACA) // Viền đỏ nhạt
-        isSelected -> Color(0xFF3B82F6)
-        else -> Color(0xFFE5E7EB)
-    }
-
-    Surface(
-        modifier = modifier
-            .height(50.dp)
-            .clickable(enabled = !isDisable) { onClick() }, // Khóa click nếu isDisable = true
-        color = bgColor,
-        shape = RoundedCornerShape(8.dp),
-        border = BorderStroke(1.dp, borderColor)
-    ) {
-        Box(contentAlignment = Alignment.Center) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text(
-                    text = slot,
-                    color = textColor,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold // Bôi đậm chữ giờ khám
-                )
-                if (isBooked) {
-                    Text("Đã đặt", color = Color(0xFFDC2626), fontSize = 9.sp, fontWeight = FontWeight.Medium)
-                } else if (isBusy) {
-                    Text("Bận", color = Color.Gray, fontSize = 9.sp)
-                }
-            }
-        }
-    }
-}
-
-@Composable
-fun DoctorSimpleInfo(doctor: User) {
-    Surface(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(16.dp),
-        color = Color.White,
-        shape = RoundedCornerShape(12.dp),
-        shadowElevation = 1.dp
-    ) {
-        Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-            Box(
-                modifier = Modifier
-                    .size(50.dp)
-                    .background(Color(0xFFEBF8FF), RoundedCornerShape(25.dp)),
-                contentAlignment = Alignment.Center
-            ) { Text("👨‍⚕️", fontSize = 24.sp) }
-            Spacer(modifier = Modifier.width(16.dp))
-            Column {
-                Text(doctor.name, fontWeight = FontWeight.Bold, fontSize = 18.sp, color = Color(0xFF1E3A8A))
-                Text(doctor.specialty, fontSize = 13.sp, color = Color.Gray)
-            }
-        }
-    }
-}
-
-@Composable
-fun DateSelectorItem(item: DateItem, isSelected: Boolean, onClick: () -> Unit) {
-    val bgColor = if (isSelected) Color(0xFFEBF8FF) else Color.White
-    val borderColor = if (isSelected) Color(0xFF3B82F6) else Color.LightGray
-    val contentColor = if (isSelected) Color(0xFF3B82F6) else Color.Black
-
-    Surface(
-        modifier = Modifier
-            .width(85.dp)
-            .height(65.dp)
-            .clickable { onClick() },
-        color = bgColor,
-        shape = RoundedCornerShape(8.dp),
-        border = BorderStroke(1.dp, borderColor)
-    ) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
-        ) {
-            Text(item.displayDate, fontWeight = FontWeight.Bold, color = contentColor)
-            Text(item.displayDayOfWeek, fontSize = 11.sp, color = if(isSelected) contentColor else Color.Gray)
-        }
-    }
-}
-
-@Composable
-fun OtherDateButton() {
-    Surface(
-        modifier = Modifier
-            .width(85.dp)
-            .height(65.dp)
-            .clickable { },
-        color = Color.White,
-        shape = RoundedCornerShape(8.dp),
-        border = BorderStroke(1.dp, Color.LightGray)
-    ) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
-        ) {
-            Icon(Icons.Default.DateRange, contentDescription = null, tint = Color(0xFF3B82F6), modifier = Modifier.size(18.dp))
-            Spacer(modifier = Modifier.height(4.dp))
-            Text("Khác", fontSize = 11.sp, color = Color.Black)
-        }
-    }
 }
