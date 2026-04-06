@@ -196,16 +196,18 @@ fun AppNavigation(
             PatientProfileScreen(navController = navController)
         }
 
+        // 🌟 Lịch sử khám của bệnh nhân (Đã truyền appointmentId)
         composable("appointment_history") {
             AppointmentHistoryScreen(
                 onBack = { navController.popBackStack() },
                 onViewRecordClick = { appointment ->
                     val encodedName = Uri.encode(appointment.patientName.ifEmpty { "Khách" })
-                    navController.navigate("patient_view_record/${appointment.patientId}/$encodedName/${appointment.doctorId}")
+                    navController.navigate("patient_view_record/${appointment.id}/${appointment.patientId}/$encodedName/${appointment.doctorId}")
                 }
             )
         }
 
+        // 🌟 Danh sách bệnh án của bệnh nhân (Đã truyền appointmentId)
         composable("patient_medical_records") {
             val user = currentUser
             if (user != null) {
@@ -214,7 +216,8 @@ fun AppNavigation(
                     onBack = { navController.popBackStack() },
                     onRecordClick = { record ->
                         val encodedName = Uri.encode(record.patientName.ifEmpty { "Khách" })
-                        navController.navigate("patient_view_record/${record.patientId}/$encodedName/${record.doctorId}")
+                        val aId = record.appointmentId.ifEmpty { "none" }
+                        navController.navigate("patient_view_record/$aId/${record.patientId}/$encodedName/${record.doctorId}")
                     }
                 )
             } else {
@@ -224,24 +227,28 @@ fun AppNavigation(
             }
         }
 
+        // 🌟 Màn hình chi tiết bệnh án dành cho Bệnh nhân (Chỉ đọc)
         composable(
-            route = "patient_view_record/{patientId}/{patientName}/{doctorId}",
+            route = "patient_view_record/{appointmentId}/{patientId}/{patientName}/{doctorId}",
             arguments = listOf(
+                navArgument("appointmentId") { type = NavType.StringType },
                 navArgument("patientId") { type = NavType.StringType },
                 navArgument("patientName") { type = NavType.StringType },
                 navArgument("doctorId") { type = NavType.StringType }
             )
         ) { backStackEntry ->
+            val aId = backStackEntry.arguments?.getString("appointmentId") ?: "none"
             val pId = backStackEntry.arguments?.getString("patientId") ?: ""
             val pName = backStackEntry.arguments?.getString("patientName") ?: ""
             val dId = backStackEntry.arguments?.getString("doctorId") ?: ""
 
             MedicalRecordScreen(
+                appointmentId = aId,
                 patientId = pId,
                 patientName = pName,
                 doctorId = dId,
                 onBack = { navController.popBackStack() },
-                isReadOnly = true // Bệnh nhân chỉ đọc
+                isReadOnly = true
             )
         }
 
@@ -293,9 +300,9 @@ fun AppNavigation(
                             popUpTo("doctor_dashboard") { inclusive = true }
                         }
                     },
-                    onPatientClick = { patientId, patientName ->
+                    onPatientClick = { apptId, patientId, patientName ->
                         val encodedName = Uri.encode(patientName)
-                        navController.navigate("medical_record_screen/$patientId/$encodedName/${user.id}")
+                        navController.navigate("medical_record_screen/$apptId/$patientId/$encodedName/${user.id}")
                     }
                 )
             } else {
@@ -305,24 +312,28 @@ fun AppNavigation(
             }
         }
 
+        // 🌟 Màn hình chỉnh sửa bệnh án dành cho Bác sĩ (Đã truyền appointmentId)
         composable(
-            route = "medical_record_screen/{patientId}/{patientName}/{doctorId}",
+            route = "medical_record_screen/{appointmentId}/{patientId}/{patientName}/{doctorId}",
             arguments = listOf(
+                navArgument("appointmentId") { type = NavType.StringType },
                 navArgument("patientId") { type = NavType.StringType },
                 navArgument("patientName") { type = NavType.StringType },
                 navArgument("doctorId") { type = NavType.StringType }
             )
         ) { backStackEntry ->
+            val aId = backStackEntry.arguments?.getString("appointmentId") ?: "none"
             val pId = backStackEntry.arguments?.getString("patientId") ?: ""
             val pName = backStackEntry.arguments?.getString("patientName") ?: ""
             val dId = backStackEntry.arguments?.getString("doctorId") ?: ""
 
             MedicalRecordScreen(
+                appointmentId = aId,
                 patientId = pId,
                 patientName = pName,
                 doctorId = dId,
                 onBack = { navController.popBackStack() },
-                isReadOnly = false // Bác sĩ được phép sửa
+                isReadOnly = true
             )
         }
     }

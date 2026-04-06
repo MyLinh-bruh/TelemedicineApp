@@ -14,41 +14,33 @@ import androidx.hilt.navigation.compose.hiltViewModel
 fun DoctorDashboardScreen(
     doctorId: String,
     onLogout: () -> Unit,
-    onPatientClick: (String, String) -> Unit, // Điều hướng sang màn hình bệnh án
+    // 🌟 ĐÃ FIX: Nhận đủ 3 tham số (apptId, patientId, patientName)
+    onPatientClick: (String, String, String) -> Unit,
     viewModel: DoctorDashboardViewModel = hiltViewModel()
 ) {
-    // 1. Quản lý trạng thái: Tab hiện tại và Chế độ chỉnh sửa hồ sơ
     var selectedTab by remember { mutableIntStateOf(0) }
     var isEditingProfile by remember { mutableStateOf(false) }
 
-    // 2. Tự động tải dữ liệu khi vào màn hình
     LaunchedEffect(doctorId) {
         viewModel.listenToData(doctorId)
     }
 
-    // 3. LOGIC CHUYỂN ĐỔI MÀN HÌNH
     if (isEditingProfile) {
-        // HIỆN MÀN HÌNH CHỈNH SỬA (Nếu bác sĩ bấm vào Profile Card)
         EditDoctorProfileScreen(
             viewModel = viewModel,
             onBack = { isEditingProfile = false }
         )
     } else {
-        // HIỆN GIAO DIỆN DASHBOARD CHÍNH
         Scaffold(
             containerColor = Color(0xFFF8FAFC),
-
-            // NÚT CỘNG: Gửi phiếu khám mới (Hồ sơ mới)
             floatingActionButton = {
                 FloatingActionButton(
-                    onClick = { onPatientClick("new", "Hồ sơ mới") },
+                    onClick = { onPatientClick("none", "new", "Hồ sơ mới") },
                     containerColor = MaterialTheme.colorScheme.primary
                 ) {
                     Icon(Icons.Default.Add, contentDescription = "Thêm bệnh án", tint = Color.White)
                 }
             },
-
-            // THANH ĐIỀU HƯỚNG DƯỚI CÙNG
             bottomBar = {
                 NavigationBar(
                     containerColor = Color.White,
@@ -82,7 +74,8 @@ fun DoctorDashboardScreen(
                         viewModel = viewModel,
                         onAppointmentClick = { appt ->
                             val pName = if (appt.patientName.isBlank()) "Ẩn danh" else appt.patientName
-                            onPatientClick(appt.patientId, pName)
+                            // 🌟 Truyền đủ 3 thông số
+                            onPatientClick(appt.id, appt.patientId, pName)
                         }
                     )
 
@@ -92,9 +85,10 @@ fun DoctorDashboardScreen(
                     // TAB 2: HỒ SƠ & QUẢN LÝ BỆNH NHÂN
                     2 -> ProfileTab(
                         viewModel = viewModel,
-                        onEditProfileClick = { isEditingProfile = true }, // 🌟 Mở màn hình sửa khi bấm vào Card
+                        onEditProfileClick = { isEditingProfile = true },
                         onLogout = onLogout,
-                        onPatientClick = onPatientClick
+                        // Bọc lại thành 2 tham số cho ProfileTab cũ
+                        onPatientClick = { pId, pName -> onPatientClick("none", pId, pName) }
                     )
                 }
             }

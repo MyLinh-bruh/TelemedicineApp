@@ -21,13 +21,11 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.example.telemedicineapp.presentation.screen.doctor.MedicalRecordViewModel
 import com.example.telemedicineapp.ui.components.PatientInfoForm
-import com.google.firebase.firestore.FirebaseFirestore
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.tasks.await
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MedicalRecordScreen(
+    appointmentId: String, // 🌟 THÊM MỚI: Nhận ID của lịch hẹn
     patientId: String,
     patientName: String,
     doctorId: String,
@@ -39,11 +37,9 @@ fun MedicalRecordScreen(
     val record by viewModel.recordState.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
 
-    val coroutineScope = rememberCoroutineScope()
-    val db = FirebaseFirestore.getInstance()
-
-    LaunchedEffect(patientId) {
-        viewModel.fetchRecord(patientId, patientName)
+    // 🌟 CẬP NHẬT: Lắng nghe và truyền appointmentId vào để tìm đúng bệnh án
+    LaunchedEffect(appointmentId, patientId) {
+        viewModel.fetchRecord(appointmentId, patientId, patientName)
     }
 
     Scaffold(
@@ -61,7 +57,7 @@ fun MedicalRecordScreen(
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
         } else {
             record?.let { currentRecord ->
-                // 🌟 States cho Form thông tin hành chính - Lấy từ data lên
+                // States cho Form thông tin hành chính - Lấy từ data lên
                 var name by remember { mutableStateOf(currentRecord.patientName) }
                 var age by remember { mutableStateOf(currentRecord.age) }
                 var cccd by remember { mutableStateOf(currentRecord.identityCard) }
@@ -144,7 +140,7 @@ fun MedicalRecordScreen(
                         Button(
                             onClick = {
                                 isSavingProgress = true
-                                // 🌟 Đóng gói tất cả thông tin hành chính và chuyên môn để lưu
+                                // Đóng gói tất cả thông tin hành chính và chuyên môn để lưu
                                 val updatedRecord = currentRecord.copy(
                                     patientName = name,
                                     age = age,

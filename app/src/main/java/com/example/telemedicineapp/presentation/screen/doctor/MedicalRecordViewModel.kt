@@ -24,79 +24,81 @@ class MedicalRecordViewModel @Inject constructor() : ViewModel() {
     private val _isLoading = MutableStateFlow(false)
     val isLoading: StateFlow<Boolean> = _isLoading
 
-    // 🌟 Lấy hồ sơ: Nếu đã khám rồi thì hiện lại (kèm thông tin hành chính cũ), chưa thì tạo mới
-    fun fetchRecord(patientId: String, patientName: String) {
+    // 🌟 LOGIC THÔNG MINH: Tìm bệnh án theo Lịch, nếu không có thì lấy TThông tin hành chính từ bệnh án cũ
+    fun fetchRecord(appointmentId: String, patientId: String, patientName: String) {
         viewModelScope.launch {
             _isLoading.value = true
             try {
-                // Lấy bản ghi mới nhất của bệnh nhân này từ Firestore
-                val snapshot = db.collection("MedicalRecords")
-                    .whereEqualTo("patientId", patientId)
-                    .get()
-                    .await()
+                // 1. Tìm xem Lịch khám này đã được tạo Bệnh án chưa
+                val currentRecordSnapshot = db.collection("MedicalRecords")
+                    .whereEqualTo("appointmentId", appointmentId)
+                    .get().await()
 
-                if (!snapshot.isEmpty) {
-                    val document = snapshot.documents[0]
-                    val data = document.toObject(MedicalRecord::class.java)
-                    // Trả về dữ liệu cũ bao gồm cả age, phone, identityCard, healthInsurance
-                    _recordState.value = data?.copy(id = document.id)
+                if (!currentRecordSnapshot.isEmpty) {
+                    // ĐÃ CÓ: Lôi ra cho bác sĩ xem/sửa tiếp
+                    val doc = currentRecordSnapshot.documents[0]
+                    _recordState.value = doc.toObject(MedicalRecord::class.java)?.copy(id = doc.id)
                 } else {
-                    // Nếu là lần đầu khám, chỉ mặc định tên, các trường hành chính khác để trống cho BS nhập [cite: 2]
-                    _recordState.value = MedicalRecord(
-                        patientId = patientId,
-                        patientName = patientName
-                    )
+                    // CHƯA CÓ: Tìm tất cả bệnh án cũ của bệnh nhân này
+                    val pastRecordsSnapshot = db.collection("MedicalRecords")
+                        .whereEqualTo("patientId", patientId)
+                        .get().await()
+
+                    if (!pastRecordsSnapshot.isEmpty) {
+                        // Sắp xếp lấy cái mới nhất
+                        val latestOldRecord = pastRecordsSnapshot.toObjects(MedicalRecord::class.java)
+                            .maxByOrNull { it.lastUpdated }
+
+                        // 🌟 TẠO MỚI nhưng COPY thông tin hành chính & tiền sử, GIỮ TRỐNG thông tin khám
+                        _recordState.value = MedicalRecord(
+                            appointmentId = appointmentId,
+                            patientId = patientId,
+                            patientName = patientName,
+                            age = latestOldRecord?.age ?: "",
+                            phone = latestOldRecord?.phone ?: "",
+                            identityCard = latestOldRecord?.identityCard ?: "",
+                            healthInsurance = latestOldRecord?.healthInsurance ?: "",
+                            height = latestOldRecord?.height ?: "",
+                            weight = latestOldRecord?.weight ?: "",
+                            bloodType = latestOldRecord?.bloodType ?: "",
+                            gender = latestOldRecord?.gender ?: "Khác",
+                            allergies = latestOldRecord?.allergies ?: "",
+                            chronicDiseases = latestOldRecord?.chronicDiseases ?: "",
+                            pastSurgeries = latestOldRecord?.pastSurgeries ?: "",
+                            familyMedicalHistory = latestOldRecord?.familyMedicalHistory ?: ""
+                        )
+                    } else {
+                        // Bệnh nhân mới toanh: Khởi tạo trống hoàn toàn
+                        _recordState.value = MedicalRecord(
+                            appointmentId = appointmentId,
+                            patientId = patientId,
+                            patientName = patientName
+                        )
+                    }
                 }
-            } catch (e: Exception) {
-                e.printStackTrace()
-            } finally {
-                _isLoading.value = false
-            }
+            } catch (e: Exception) { e.printStackTrace() }
+            finally { _isLoading.value = false }
         }
     }
 
-    // 🌟 XÁC NHẬN & GỬI PHIẾU KHÁM
     fun saveRecord(record: MedicalRecord, doctorId: String, onComplete: (Boolean) -> Unit) {
         viewModelScope.launch {
             try {
                 val collection = db.collection("MedicalRecords")
-
-                // 1. Tạo ID nếu chưa có (cho hồ sơ mới)
                 val finalId = if (record.id.isEmpty()) collection.document().id else record.id
-
-                // 2. Định dạng thời gian gửi theo giờ địa phương
                 val currentTime = SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.getDefault()).format(Date())
 
-                // 3. Chuẩn bị dữ liệu cuối cùng để gửi (Bao gồm các trường hành chính mới)
-                val finalRecord = record.copy(
-                    id = finalId,
-                    doctorId = doctorId,
-                    lastUpdated = currentTime
-                )
-
-                // 4. Đẩy lên Firestore
+                val finalRecord = record.copy(id = finalId, doctorId = doctorId, lastUpdated = currentTime)
                 collection.document(finalId).set(finalRecord).await()
 
-                // 🌟 5. TỰ ĐỘNG ĐỔI TRẠNG THÁI LỊCH HẸN THÀNH "COMPLETED" (ĐÃ KHÁM)
-                val apptQuery = db.collection("Appointments")
-                    .whereEqualTo("doctorId", doctorId)
-                    .whereEqualTo("patientId", record.patientId)
-                    .get()
-                    .await()
-
-                for (doc in apptQuery.documents) {
-                    val status = doc.getString("status")
-                    // Cập nhật các lịch đang ở trạng thái chờ hoặc đã thanh toán
-                    if (status == "PENDING" || status == "PAID") {
-                        doc.reference.update("status", "COMPLETED").await()
-                    }
+                // 🌟 Tự động cập nhật ĐÚNG cái lịch hẹn đó thành COMPLETED
+                if (record.appointmentId.isNotEmpty() && record.appointmentId != "none") {
+                    db.collection("Appointments").document(record.appointmentId)
+                        .update("status", "COMPLETED").await()
                 }
 
                 onComplete(true)
-            } catch (e: Exception) {
-                e.printStackTrace()
-                onComplete(false)
-            }
+            } catch (e: Exception) { onComplete(false) }
         }
     }
 }
