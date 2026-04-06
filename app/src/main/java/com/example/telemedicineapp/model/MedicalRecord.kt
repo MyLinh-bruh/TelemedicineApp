@@ -29,5 +29,6 @@ data class MedicalRecord(
     val diagnosis: String = "", // Chẩn đoán của bác sĩ
     val prescription: String = "", // Kê đơn thuốc / Hướng dẫn điều trị
 
-    val lastUpdated: String = "" // Thời gian cập nhật cuối
+    val lastUpdated: String = "", // Thời gian cập nhật cuối
+    val appointmentId: String = ""
 )

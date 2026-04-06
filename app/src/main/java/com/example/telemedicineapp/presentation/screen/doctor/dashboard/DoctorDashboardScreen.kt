@@ -82,7 +82,7 @@ fun DoctorDashboardScreen(
                         viewModel = viewModel,
                         onAppointmentClick = { appt ->
                             val pName = if (appt.patientName.isBlank()) "Ẩn danh" else appt.patientName
-                            onPatientClick(appt.patientId, pName)
+                            onPatientClick(appt.id, pName) // ✅ dùng appointmentId
                         }
                     )
 
