@@ -19,45 +19,46 @@ import javax.inject.Inject
 @HiltViewModel
 class AppointmentViewModel @Inject constructor(
     private val appointmentRepository: AppointmentRepository,
-    private val tokenManager: TokenManager // 👈 THÊM TOKEN MANAGER
+    private val tokenManager: TokenManager
 ) : ViewModel() {
 
     private val db = FirebaseFirestore.getInstance()
 
-    // 1. Trạng thái tiến trình đặt lịch (Idle, Loading, Success, Conflict, Error)
     private val _bookingState = MutableStateFlow<BookingState>(BookingState.Idle)
     val bookingState: StateFlow<BookingState> = _bookingState
 
-    // 2. Lịch rảnh của bác sĩ
     private val _doctorSchedule = MutableStateFlow<DoctorSchedule?>(null)
     val doctorSchedule: StateFlow<DoctorSchedule?> = _doctorSchedule
 
-    // 3. Danh sách các Slot đã có người đặt (Dùng để hiển thị màu đỏ/vô hiệu hóa nút)
     private val _bookedSlots = MutableStateFlow<List<String>>(emptyList())
     val bookedSlots: StateFlow<List<String>> = _bookedSlots
 
-    // Biến lưu trữ lịch hẹn đang xử lý
     private var currentPendingAppointmentId: String? = null
 
-    /**
-     * Lấy lịch làm việc của bác sĩ và danh sách các slot đã bị đặt
-     */
+    // 🌟 KHUNG GIỜ MẶC ĐỊNH ĐỂ PHÒNG HỜ BÁC SĨ CHỈ LƯU BUSY SLOTS MÀ QUÊN LƯU SLOTS KHÁM
+    private val defaultMorning = listOf("08:00 - 08:30", "08:30 - 09:00", "09:00 - 09:30", "09:30 - 10:00", "10:00 - 10:30", "10:30 - 11:00", "11:00 - 11:30")
+    private val defaultAfternoon = listOf("13:00 - 13:30", "13:30 - 14:00", "14:00 - 14:30", "14:30 - 15:00", "15:00 - 15:30", "15:30 - 16:00", "16:00 - 16:30")
+
     fun getSchedulesAndAppointments(doctorId: String, date: String) {
         viewModelScope.launch {
             try {
                 val localDate = java.time.LocalDate.parse(date)
                 val dayOfWeek = localDate.dayOfWeek.value
 
-                // Ưu tiên 1: Tìm lịch cụ thể cho ngày đó trong DoctorSchedules
                 val specificSnapshot = db.collection("DoctorSchedules")
                     .whereEqualTo("doctorId", doctorId)
                     .whereEqualTo("date", date)
                     .get().await()
 
                 if (!specificSnapshot.isEmpty) {
-                    _doctorSchedule.value = specificSnapshot.documents[0].toObject(DoctorSchedule::class.java)
+                    val schedule = specificSnapshot.documents[0].toObject(DoctorSchedule::class.java)
+                    if (schedule != null) {
+                        // 🌟 FIX LỖI: NẾU TRỐNG LỊCH (Do chỉ lưu lịch bận), LẤY LỊCH MẶC ĐỊNH LẤP VÀO
+                        val mMorning = schedule.morningSlots.ifEmpty { defaultMorning }
+                        val mAfternoon = schedule.afternoonSlots.ifEmpty { defaultAfternoon }
+                        _doctorSchedule.value = schedule.copy(morningSlots = mMorning, afternoonSlots = mAfternoon)
+                    }
                 } else {
-                    // Ưu tiên 2: Lấy lịch mặc định theo thứ trong tuần từ DoctorDefaults
                     val doctorDefaultSnapshot = db.collection("DoctorDefaults")
                         .whereEqualTo("doctorId", doctorId)
                         .whereEqualTo("dayOfWeek", dayOfWeek)
@@ -65,19 +66,21 @@ class AppointmentViewModel @Inject constructor(
 
                     if (!doctorDefaultSnapshot.isEmpty) {
                         val docData = doctorDefaultSnapshot.documents[0]
+                        val mMorning = (docData.get("morningSlots") as? List<String> ?: emptyList()).ifEmpty { defaultMorning }
+                        val mAfternoon = (docData.get("afternoonSlots") as? List<String> ?: emptyList()).ifEmpty { defaultAfternoon }
+
                         _doctorSchedule.value = DoctorSchedule(
                             date = date,
                             doctorId = doctorId,
-                            morningSlots = docData.get("morningSlots") as? List<String> ?: emptyList(),
-                            afternoonSlots = docData.get("afternoonSlots") as? List<String> ?: emptyList()
+                            morningSlots = mMorning,
+                            afternoonSlots = mAfternoon
                         )
                     } else {
-                        // Ưu tiên 3: Giá trị mặc định cứng nếu không cấu hình gì cả
                         _doctorSchedule.value = DoctorSchedule(
                             date = date,
                             doctorId = doctorId,
-                            morningSlots = listOf("08:00 - 09:00", "09:00 - 10:00", "10:00 - 11:00"),
-                            afternoonSlots = listOf("14:00 - 15:00", "15:00 - 16:00")
+                            morningSlots = defaultMorning,
+                            afternoonSlots = defaultAfternoon
                         )
                     }
                 }
@@ -103,7 +106,7 @@ class AppointmentViewModel @Inject constructor(
                 val utcTime = doc.getString("dateTimeUtc") ?: return@mapNotNull null
                 val status = doc.getString("status") ?: ""
 
-                if (utcTime in startOfDay..endOfDay && (status == "PENDING" || status == "PAID")) {
+                if (utcTime in startOfDay..endOfDay && (status == "PENDING" || status == "PAID" || status == "COMPLETED")) {
                     TimeUtils.extractSlotFromUtc(utcTime)
                 } else null
             }
@@ -114,14 +117,10 @@ class AppointmentViewModel @Inject constructor(
         }
     }
 
-    /**
-     * Thực hiện giữ chỗ (book) lịch hẹn với trạng thái PENDING
-     */
     fun bookAppointment(appointment: Appointment) {
         viewModelScope.launch {
             _bookingState.value = BookingState.Loading
             try {
-                // 1. Kiểm tra Fresh Check
                 val checkSnapshot = db.collection("Appointments")
                     .whereEqualTo("doctorId", appointment.doctorId)
                     .whereEqualTo("dateTimeUtc", appointment.dateTimeUtc)
@@ -133,19 +132,14 @@ class AppointmentViewModel @Inject constructor(
                     return@launch
                 }
 
-                // 2. Tạo ID mới
                 val newDocRef = db.collection("Appointments").document()
-
-                // 3. ÉP CẬP NHẬT patientId THÀNH EMAIL ĐANG ĐĂNG NHẬP (An toàn tuyệt đối)
                 val safeEmail = tokenManager.getEmail() ?: appointment.patientId
                 val appointmentWithIdAndEmail = appointment.copy(
                     id = newDocRef.id,
-                    patientId = safeEmail // 👈 LUÔN LUÔN LƯU BẰNG EMAIL
+                    patientId = safeEmail
                 )
 
                 newDocRef.set(appointmentWithIdAndEmail).await()
-
-                // 4. Lưu lại ID tạm thời
                 currentPendingAppointmentId = appointmentWithIdAndEmail.id
                 _bookingState.value = BookingState.Success
 
@@ -170,6 +164,7 @@ class AppointmentViewModel @Inject constructor(
         }
     }
 
+    // 🌟 HÀM NÀY SẼ DÙNG KHI BẤM NÚT "HỦY GIAO DỊCH" (XÓA LUÔN LỊCH)
     fun cancelPendingAppointment() {
         val apptId = currentPendingAppointmentId ?: return
         viewModelScope.launch {
