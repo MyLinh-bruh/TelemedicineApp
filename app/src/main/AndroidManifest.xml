@@ -20,7 +20,8 @@
         <intent><action android:name="android.intent.action.VIEW" /><data android:scheme="vibmobile" /></intent>
         <intent><action android:name="android.intent.action.VIEW" /><data android:scheme="sacombankpay" /></intent>
     </queries>
-
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
     <application
         android:name=".TelemedicineApplication"
         android:allowBackup="true"

@@ -161,8 +161,8 @@ class AuthRepository @Inject constructor() {
         } catch (e: Exception) { null }
     }
 
-    // --- 7. Cập nhật hồ sơ (Update các field cụ thể) ---
-    suspend fun updateUserProfile(user: User, imageUri: Uri?): Boolean {
+    // Thêm Context vào để đọc Uri
+    suspend fun updateUserProfile(context: android.content.Context, user: User, imageUri: Uri?): Boolean {
         return try {
             val snapshot = db.collection("Users")
                 .whereEqualTo("email", user.email)
@@ -180,11 +180,38 @@ class AuthRepository @Inject constructor() {
                 "medicalHistory" to user.medicalHistory
             )
 
-            // Nếu có ảnh mới, lưu tạm URI
-            imageUri?.let { updates["imageUrl"] = it.toString() }
+            // XỬ LÝ ẢNH: Nếu có Uri mới, nén thành Base64. Nếu không, lấy từ user.imageUrl (đã xử lý ở Screen)
+            val finalImage = if (imageUri != null) {
+                uriToBase64(context, imageUri)
+            } else {
+                user.imageUrl
+            }
+
+            if (finalImage.isNotEmpty()) {
+                updates["imageUrl"] = finalImage
+            }
 
             docRef.update(updates).await()
             true
-        } catch (e: Exception) { false }
+        } catch (e: Exception) {
+            e.printStackTrace()
+            false
+        }
+    }
+
+    // Hàm nén ảnh "vô đối" để không bị quá dung lượng
+    private fun uriToBase64(context: android.content.Context, uri: Uri): String {
+        return try {
+            val inputStream = context.contentResolver.openInputStream(uri)
+            val bitmap = android.graphics.BitmapFactory.decodeStream(inputStream)
+            val outputStream = java.io.ByteArrayOutputStream()
+
+            // Nén xuống 25% chất lượng để chuỗi Base64 không quá 1MB
+            bitmap.compress(android.graphics.Bitmap.CompressFormat.JPEG, 25, outputStream)
+            val byteArray = outputStream.toByteArray()
+            android.util.Base64.encodeToString(byteArray, android.util.Base64.DEFAULT)
+        } catch (e: Exception) {
+            ""
+        }
     }
 }
