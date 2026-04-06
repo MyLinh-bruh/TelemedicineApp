@@ -10,17 +10,25 @@ import javax.inject.Inject
 import javax.inject.Singleton
 import com.example.telemedicineapp.model.User
 
-// 🌟 ĐÃ CẬP NHẬT: Thêm certificateUrl để khớp với Model
+
 data class UserEntity(
     val id: String = "",
+    val email: String = "",
     val name: String = "",
-    var email: String = "",
     val role: String = "PATIENT",
-    val doctorStatus: String = "NONE",
-    val specialty: String = "",
-    val hospitalName: String = "",
     val imageUrl: String = "",
-    val certificateUrl: String = ""
+    val certificateUrl: String = "",
+    val phone: String = "",
+    val address: String = "",
+    val gender: String = "",
+    val specialty: String = "",
+    val description: String = "",
+    val hospitalName: String = "",
+    val doctorStatus: String = "NONE",
+    val bankAccountNumber: String = "",
+    val bankName: String = "",
+    val bloodType: String = "",
+    val medicalHistory: String = ""
 )
 
 enum class RegisterResult { SUCCESS, EMAIL_EXISTS, ERROR }
