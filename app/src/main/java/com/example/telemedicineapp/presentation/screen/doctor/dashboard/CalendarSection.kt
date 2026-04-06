@@ -36,9 +36,8 @@ fun CalendarSection(
     var selectedDate by remember { mutableStateOf(LocalDate.now()) }
 
     // Lọc danh sách khám của ngày được chọn
-    val appointmentsToday = allAppointments.filter {
-        it.dateTimeUtc.substring(0, 10) == selectedDate.toString()
-    }
+    val appointmentsToday = allAppointments.filter { it.dateTimeUtc.startsWith(selectedDate.toString()) }
+
     Column(Modifier.fillMaxSize().padding(16.dp)) {
         Text("Lịch làm việc", fontSize = 24.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFF1E293B))
         Spacer(Modifier.height(16.dp))

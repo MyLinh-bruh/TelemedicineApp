@@ -1,6 +1,5 @@
 package com.example.telemedicineapp.presentation.screen.doctor.dashboard
 
-import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.telemedicineapp.data.UserEntity
@@ -18,9 +17,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
-import java.time.LocalDate
-import java.text.SimpleDateFormat
-import java.util.*
+import java.time.LocalDate // Cần thiết để xử lý vòng lặp ngày
 import javax.inject.Inject
 
 @HiltViewModel
@@ -30,23 +27,6 @@ class DoctorDashboardViewModel @Inject constructor() : ViewModel() {
 
     private val _doctorProfile = MutableStateFlow<User?>(null)
     val doctorProfile: StateFlow<User?> = _doctorProfile.asStateFlow()
-
-    private val _markedDays = MutableStateFlow<List<String>>(emptyList())
-    val markedDays: StateFlow<List<String>> = _markedDays.asStateFlow()
-
-    private val _appointments = MutableStateFlow<List<Appointment>>(emptyList())
-    val appointments: StateFlow<List<Appointment>> = _appointments.asStateFlow()
-
-    private val _patientRecords = MutableStateFlow<List<MedicalRecord>>(emptyList())
-    val patientRecords: StateFlow<List<MedicalRecord>> = _patientRecords.asStateFlow()
-
-    private val _busySchedules = MutableStateFlow<List<DoctorSchedule>>(emptyList())
-    val busySchedules: StateFlow<List<DoctorSchedule>> = _busySchedules.asStateFlow()
-
-    private val _availableSlotsForSetup = MutableStateFlow(
-        listOf("08:00", "09:00", "10:00", "11:00", "13:00", "14:00", "15:00", "16:00")
-    )
-    val availableSlotsForSetup: StateFlow<List<String>> = _availableSlotsForSetup.asStateFlow()
 
     // 1. Lấy thông tin hồ sơ bác sĩ
     fun fetchDoctorProfile(doctorId: String) {
@@ -76,19 +56,25 @@ class DoctorDashboardViewModel @Inject constructor() : ViewModel() {
                             )
                         }
                     } catch (e: Exception) {
-                        Log.e("DOCTOR_ERROR", "Lỗi tải hồ sơ: ${e.message}")
+                        android.util.Log.e("DOCTOR_ERROR", "Lỗi tải hồ sơ: ${e.message}")
                     }
                 }
             }
     }
 
-    // 2. Cập nhật hồ sơ bác sĩ
+    // 2. Cập nhật hồ sơ (sử dụng merge để tránh mất password)
     fun updateProfile(user: User, onComplete: (Boolean) -> Unit) {
         db.collection("Users").document(user.id).set(user, SetOptions.merge())
             .addOnCompleteListener { onComplete(it.isSuccessful) }
     }
 
     // 3. Quản lý lịch hẹn (Calendar)
+    private val _markedDays = MutableStateFlow<List<String>>(emptyList())
+    val markedDays: StateFlow<List<String>> = _markedDays.asStateFlow()
+
+    private val _appointments = MutableStateFlow<List<Appointment>>(emptyList())
+    val appointments: StateFlow<List<Appointment>> = _appointments.asStateFlow()
+
     fun fetchCalendarData(doctorId: String) {
         db.collection("Appointments")
             .whereEqualTo("doctorId", doctorId)
@@ -101,11 +87,13 @@ class DoctorDashboardViewModel @Inject constructor() : ViewModel() {
             }
     }
 
-    // 4. Lấy danh sách bệnh án (Sắp xếp theo giờ mới nhất)
+    // 4. Lấy danh sách bệnh án đã khám
+    private val _patientRecords = MutableStateFlow<List<MedicalRecord>>(emptyList())
+    val patientRecords: StateFlow<List<MedicalRecord>> = _patientRecords.asStateFlow()
+
     fun fetchPatientRecords(doctorId: String) {
         db.collection("MedicalRecords")
             .whereEqualTo("doctorId", doctorId)
-            .orderBy("lastUpdated", com.google.firebase.firestore.Query.Direction.DESCENDING)
             .addSnapshotListener { snapshot, _ ->
                 if (snapshot != null) {
                     _patientRecords.value = snapshot.toObjects(MedicalRecord::class.java)
@@ -113,46 +101,15 @@ class DoctorDashboardViewModel @Inject constructor() : ViewModel() {
             }
     }
 
-    // 🌟 5. HÀM LƯU HỒ SƠ MỚI (FIXED: Nằm trong class, tạo ID mới)
-    // 🌟 HÀM LƯU HỒ SƠ MỚI (Đã sửa để tạo hồ sơ riêng biệt cho mỗi lần khám)
-    fun saveMedicalRecord(
-        record: MedicalRecord,
-        appointmentId: String,
-        onComplete: (Boolean) -> Unit
-    ) {
-        viewModelScope.launch {
-            try {
-                val newRecordRef = db.collection("MedicalRecords").document()
+    // 5. QUẢN LÝ LỊCH BẬN (BUSY SCHEDULE)
+    private val _busySchedules = MutableStateFlow<List<DoctorSchedule>>(emptyList())
+    val busySchedules: StateFlow<List<DoctorSchedule>> = _busySchedules.asStateFlow()
 
-                val sdf = SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.getDefault())
-                val currentTime = sdf.format(Date())
+    private val _availableSlotsForSetup = MutableStateFlow(
+        listOf("08:00", "09:00", "10:00", "11:00", "13:00", "14:00", "15:00", "16:00")
+    )
+    val availableSlotsForSetup: StateFlow<List<String>> = _availableSlotsForSetup.asStateFlow()
 
-                val finalRecord = record.copy(
-                    id = newRecordRef.id,
-                    appointmentId = appointmentId, // 🌟 QUAN TRỌNG
-                    lastUpdated = currentTime
-                )
-
-                val batch = db.batch()
-                batch.set(newRecordRef, finalRecord)
-
-                // update đúng lịch hẹn
-                if (appointmentId.isNotBlank()) {
-                    val apptRef = db.collection("Appointments").document(appointmentId)
-                    batch.update(apptRef, "status", "COMPLETED")
-                }
-
-                batch.commit().await()
-                onComplete(true)
-
-            } catch (e: Exception) {
-                Log.e("SAVE_RECORD_ERROR", "Lỗi: ${e.message}")
-                onComplete(false)
-            }
-        }
-    }
-
-    // 6. QUẢN LÝ LỊCH BẬN
     fun fetchBusySchedules(doctorId: String) {
         db.collection("DoctorSchedules")
             .whereEqualTo("doctorId", doctorId)
@@ -174,6 +131,10 @@ class DoctorDashboardViewModel @Inject constructor() : ViewModel() {
         )
     }
 
+    /**
+     * FIX CHÍNH: Hàm khóa lịch nhiều ngày sử dụng WriteBatch
+     * Giúp khóa từ ngày 14 đến 16 chỉ với 1 lần nhấn nút.
+     */
     fun saveBusyRange(
         doctorId: String,
         startDate: String,
@@ -185,23 +146,31 @@ class DoctorDashboardViewModel @Inject constructor() : ViewModel() {
             try {
                 val start = LocalDate.parse(startDate)
                 val end = LocalDate.parse(endDate)
+
+                // Sử dụng WriteBatch để tối ưu hóa hiệu suất và đảm bảo tính nguyên tử
                 val batch = db.batch()
 
                 var current = start
                 while (!current.isAfter(end)) {
-                    val dateStr = current.toString()
+                    val dateStr = current.toString() // Trả về định dạng yyyy-MM-dd
+
+                    // Tạo document mới tự động ID cho mỗi ngày trong khoảng
                     val docRef = db.collection("DoctorSchedules").document()
+
                     val data = hashMapOf(
                         "doctorId" to doctorId,
                         "date" to dateStr,
                         "busySlots" to slots
                     )
                     batch.set(docRef, data)
-                    current = current.plusDays(1)
+
+                    current = current.plusDays(1) // Chuyển sang ngày tiếp theo
                 }
+
                 batch.commit().await()
                 onComplete(true)
             } catch (e: Exception) {
+                android.util.Log.e("SAVE_ERROR", "Lỗi khóa lịch: ${e.message}")
                 onComplete(false)
             }
         }
