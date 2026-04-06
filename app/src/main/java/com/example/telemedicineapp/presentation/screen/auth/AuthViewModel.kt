@@ -236,6 +236,35 @@ class AuthViewModel @Inject constructor(
         }
     }
 
+    // 🌟 MỚI: HÀM XÓA HÀNG LOẠT BÁC SĨ TỪ FIRESTORE
+    fun deleteSelectedDoctors(doctorIds: List<String>) {
+        if (doctorIds.isEmpty()) {
+            _errorMessage.value = "Vui lòng chọn ít nhất 1 bác sĩ để xóa!"
+            return
+        }
+
+        _isLoading.value = true
+
+        // Sử dụng Firebase Batch Write để xóa cùng lúc nhiều dòng
+        val batch = db.batch()
+
+        doctorIds.forEach { id ->
+            val doctorRef = db.collection("Users").document(id)
+            batch.delete(doctorRef)
+        }
+
+        // Thực thi việc xóa
+        batch.commit()
+            .addOnSuccessListener {
+                _isLoading.value = false
+                _errorMessage.value = "Đã xóa thành công ${doctorIds.size} bác sĩ!"
+            }
+            .addOnFailureListener { exception ->
+                _isLoading.value = false
+                _errorMessage.value = "Lỗi khi xóa: ${exception.message}"
+            }
+    }
+
     fun logout() {
         auth.signOut()
         tokenManager.clearSession()
