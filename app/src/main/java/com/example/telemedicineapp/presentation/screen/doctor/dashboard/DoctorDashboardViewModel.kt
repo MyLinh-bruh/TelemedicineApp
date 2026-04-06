@@ -1,16 +1,23 @@
 package com.example.telemedicineapp.presentation.screen.doctor.dashboard
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
+import com.example.telemedicineapp.data.UserEntity
 import com.example.telemedicineapp.model.Appointment
 import com.example.telemedicineapp.model.DoctorSchedule
 import com.example.telemedicineapp.model.MedicalRecord
 import com.example.telemedicineapp.model.User
+import com.example.telemedicineapp.model.Role
+import com.example.telemedicineapp.model.DoctorStatus
 import com.google.firebase.firestore.FirebaseFirestore
+import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import javax.inject.Inject
 
-class DoctorDashboardViewModel : ViewModel() {
+@HiltViewModel
+class DoctorDashboardViewModel @Inject constructor() : ViewModel() {
 
     private val db = FirebaseFirestore.getInstance()
 
@@ -22,7 +29,29 @@ class DoctorDashboardViewModel : ViewModel() {
         db.collection("Users").document(doctorId)
             .addSnapshotListener { snapshot, _ ->
                 if (snapshot != null && snapshot.exists()) {
-                    _doctorProfile.value = snapshot.toObject(User::class.java)
+                    try {
+                        // Sử dụng UserEntity để hứng dữ liệu String từ Firebase
+                        val entity = snapshot.toObject(UserEntity::class.java)
+                        if (entity != null) {
+                            // Ép kiểu từ String sang Enum an toàn
+                            val role = try { Role.valueOf(entity.role.uppercase()) } catch (e: Exception) { Role.DOCTOR }
+                            val status = try { DoctorStatus.valueOf(entity.doctorStatus.uppercase()) } catch (e: Exception) { DoctorStatus.APPROVED }
+
+                            _doctorProfile.value = User(
+                                id = snapshot.id,
+                                email = entity.email,
+                                name = entity.name,
+                                role = role,
+                                doctorStatus = status,
+                                specialty = entity.specialty,
+                                hospitalName = entity.hospitalName,
+                                imageUrl = entity.imageUrl,
+                                certificateUrl = entity.certificateUrl
+                            )
+                        }
+                    } catch (e: Exception) {
+                        Log.e("DOCTOR_ERROR", "Lỗi convert dữ liệu bác sĩ: ${e.message}")
+                    }
                 }
             }
     }
@@ -74,7 +103,6 @@ class DoctorDashboardViewModel : ViewModel() {
     )
     val availableSlotsForSetup: StateFlow<List<String>> = _availableSlotsForSetup.asStateFlow()
 
-    // 🌟 ĐÃ FIX: Lấy Document ID để hàm xóa không bị lỗi
     fun fetchBusySchedules(doctorId: String) {
         db.collection("DoctorSchedules")
             .whereEqualTo("doctorId", doctorId)
