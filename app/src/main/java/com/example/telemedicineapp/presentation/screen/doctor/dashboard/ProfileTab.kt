@@ -1,5 +1,8 @@
 package com.example.telemedicineapp.presentation.screen.doctor.dashboard
 
+import android.graphics.BitmapFactory
+import android.util.Base64
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -17,6 +20,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -39,7 +44,7 @@ fun ProfileTab(
     onPatientClick: (String, String) -> Unit
 ) {
     val doctor by viewModel.doctorProfile.collectAsState()
-    val patientRecords by viewModel.patientRecords.collectAsState() // 🌟 Lấy danh sách bệnh án
+    val patientRecords by viewModel.patientRecords.collectAsState()
 
     var searchQuery by remember { mutableStateOf("") }
 
@@ -52,7 +57,6 @@ fun ProfileTab(
 
     val user = doctor!!
 
-    // 🌟 Lọc danh sách bệnh án theo từ khóa tìm kiếm
     val filteredRecords = remember(searchQuery, patientRecords) {
         val queryClean = searchQuery.toSearchableString()
         if (queryClean.isEmpty()) {
@@ -88,6 +92,7 @@ fun ProfileTab(
                 }
             }
 
+            // 🌟 AVATAR CÓ BASE64 ĐÃ SỬA TẠI ĐÂY
             Box(
                 modifier = Modifier
                     .align(Alignment.BottomStart)
@@ -99,15 +104,48 @@ fun ProfileTab(
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
-                        .background(Color(0xFF2563EB), CircleShape),
+                        .clip(CircleShape)
+                        .background(Color(0xFF2563EB)),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text(
-                        text = user.name.take(1).uppercase(),
-                        color = Color.White,
-                        fontSize = 40.sp,
-                        fontWeight = FontWeight.Bold
-                    )
+                    if (user.imageUrl.isNotBlank()) {
+                        val bitmap = remember(user.imageUrl) {
+                            try {
+                                val cleanBase64 = if (user.imageUrl.contains(",")) {
+                                    user.imageUrl.substringAfter(",")
+                                } else {
+                                    user.imageUrl
+                                }
+                                val imageBytes = Base64.decode(cleanBase64, Base64.DEFAULT)
+                                BitmapFactory.decodeByteArray(imageBytes, 0, imageBytes.size)
+                            } catch (e: Exception) {
+                                null
+                            }
+                        }
+
+                        if (bitmap != null) {
+                            Image(
+                                bitmap = bitmap.asImageBitmap(),
+                                contentDescription = "Avatar của ${user.name}",
+                                modifier = Modifier.fillMaxSize(),
+                                contentScale = ContentScale.Crop
+                            )
+                        } else {
+                            Text(
+                                text = user.name.take(1).uppercase(),
+                                color = Color.White,
+                                fontSize = 40.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    } else {
+                        Text(
+                            text = user.name.take(1).uppercase(),
+                            color = Color.White,
+                            fontSize = 40.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
                 }
             }
         }
@@ -130,7 +168,7 @@ fun ProfileTab(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                StatCard("BỆNH NHÂN", "${patientRecords.size}") // Hiển thị số bệnh nhân thực tế
+                StatCard("BỆNH NHÂN", "${patientRecords.size}")
                 StatCard("KINH NGHIỆM", "10 Năm")
                 StatCard("PHÍ KHÁM", "300K", valueColor = Color(0xFF2563EB))
             }
@@ -178,13 +216,10 @@ fun ProfileTab(
             HorizontalDivider(thickness = 4.dp, color = Color(0xFFF1F5F9))
             Spacer(modifier = Modifier.height(24.dp))
 
-            // ==========================================
-            // 🌟 7. PHẦN QUẢN LÝ LỊCH SỬ BỆNH ÁN
-            // ==========================================
+            // --- 7. QUẢN LÝ LỊCH SỬ BỆNH ÁN ---
             Text(text = "Lịch sử bệnh án", fontSize = 20.sp, fontWeight = FontWeight.ExtraBold, color = Color.Black)
             Spacer(modifier = Modifier.height(12.dp))
 
-            // Ô Tìm kiếm
             OutlinedTextField(
                 value = searchQuery,
                 onValueChange = { searchQuery = it },
@@ -203,7 +238,6 @@ fun ProfileTab(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Danh sách bệnh án (Dùng forEach thay vì LazyColumn để tránh lỗi lồng Scroll)
             if (filteredRecords.isEmpty()) {
                 Box(modifier = Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) {
                     Text("Không tìm thấy bệnh án nào", color = Color.Gray)
@@ -216,7 +250,7 @@ fun ProfileTab(
                                 .fillMaxWidth()
                                 .clickable {
                                     val pName = if (record.patientName.isBlank()) "Ẩn danh" else record.patientName
-                                    onPatientClick(record.patientId, pName) // Bấm vào để xem/sửa chi tiết
+                                    onPatientClick(record.patientId, pName)
                                 },
                             colors = CardDefaults.cardColors(containerColor = Color.White),
                             elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
