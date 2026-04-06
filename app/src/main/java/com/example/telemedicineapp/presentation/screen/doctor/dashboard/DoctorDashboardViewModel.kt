@@ -44,6 +44,11 @@ class DoctorDashboardViewModel @Inject constructor() : ViewModel() {
                                 hospitalName = entity.hospitalName,
                                 imageUrl = entity.imageUrl,
                                 certificateUrl = entity.certificateUrl,
+                                // 🌟 ĐÃ BỔ SUNG CÁC TRƯỜNG BỊ THIẾU Ở ĐÂY
+                                description = entity.description,
+                                address = entity.address,
+                                bankName = entity.bankName,
+                                bankAccountNumber = entity.bankAccountNumber
                             )
                         }
                     } catch (e: Exception) {
