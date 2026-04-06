@@ -24,7 +24,6 @@ class MedicalRecordViewModel @Inject constructor() : ViewModel() {
     private val _isLoading = MutableStateFlow(false)
     val isLoading: StateFlow<Boolean> = _isLoading
 
-    // 🌟 LOGIC THÔNG MINH: Tìm bệnh án theo Lịch, nếu không có thì lấy TThông tin hành chính từ bệnh án cũ
     fun fetchRecord(appointmentId: String, patientId: String, patientName: String) {
         viewModelScope.launch {
             _isLoading.value = true
@@ -39,42 +38,52 @@ class MedicalRecordViewModel @Inject constructor() : ViewModel() {
                     val doc = currentRecordSnapshot.documents[0]
                     _recordState.value = doc.toObject(MedicalRecord::class.java)?.copy(id = doc.id)
                 } else {
-                    // CHƯA CÓ: Tìm tất cả bệnh án cũ của bệnh nhân này
+                    // CHƯA CÓ BỆNH ÁN CHO LỊCH NÀY -> Tạo mới
+
+                    // 🌟 BƯỚC QUAN TRỌNG: Lấy data mới nhất từ bảng Users (để khắc phục lỗi lệch Nhóm máu AB)
+                    val userSnapshot = db.collection("Users").whereEqualTo("email", patientId).get().await()
+                    var latestBloodType = ""
+                    var latestPhone = ""
+                    var latestGender = "Khác"
+
+                    if (!userSnapshot.isEmpty) {
+                        val userDoc = userSnapshot.documents[0]
+                        latestBloodType = userDoc.getString("bloodType") ?: ""
+                        latestPhone = userDoc.getString("phone") ?: ""
+                        latestGender = userDoc.getString("gender") ?: "Khác"
+                    }
+
+                    // Tìm bệnh án cũ (nếu có) để mượn tạm chiều cao, cân nặng, tiền sử...
                     val pastRecordsSnapshot = db.collection("MedicalRecords")
                         .whereEqualTo("patientId", patientId)
                         .get().await()
 
-                    if (!pastRecordsSnapshot.isEmpty) {
-                        // Sắp xếp lấy cái mới nhất
-                        val latestOldRecord = pastRecordsSnapshot.toObjects(MedicalRecord::class.java)
-                            .maxByOrNull { it.lastUpdated }
+                    val latestOldRecord = if (!pastRecordsSnapshot.isEmpty) {
+                        pastRecordsSnapshot.toObjects(MedicalRecord::class.java).maxByOrNull { it.lastUpdated }
+                    } else null
 
-                        // 🌟 TẠO MỚI nhưng COPY thông tin hành chính & tiền sử, GIỮ TRỐNG thông tin khám
-                        _recordState.value = MedicalRecord(
-                            appointmentId = appointmentId,
-                            patientId = patientId,
-                            patientName = patientName,
-                            age = latestOldRecord?.age ?: "",
-                            phone = latestOldRecord?.phone ?: "",
-                            identityCard = latestOldRecord?.identityCard ?: "",
-                            healthInsurance = latestOldRecord?.healthInsurance ?: "",
-                            height = latestOldRecord?.height ?: "",
-                            weight = latestOldRecord?.weight ?: "",
-                            bloodType = latestOldRecord?.bloodType ?: "",
-                            gender = latestOldRecord?.gender ?: "Khác",
-                            allergies = latestOldRecord?.allergies ?: "",
-                            chronicDiseases = latestOldRecord?.chronicDiseases ?: "",
-                            pastSurgeries = latestOldRecord?.pastSurgeries ?: "",
-                            familyMedicalHistory = latestOldRecord?.familyMedicalHistory ?: ""
-                        )
-                    } else {
-                        // Bệnh nhân mới toanh: Khởi tạo trống hoàn toàn
-                        _recordState.value = MedicalRecord(
-                            appointmentId = appointmentId,
-                            patientId = patientId,
-                            patientName = patientName
-                        )
-                    }
+                    // 🌟 TẠO MỚI kết hợp thông tin
+                    _recordState.value = MedicalRecord(
+                        appointmentId = appointmentId,
+                        patientId = patientId,
+                        patientName = patientName,
+
+                        // ƯU TIÊN DỮ LIỆU TỪ BẢNG USERS VÌ ĐÂY LÀ DỮ LIỆU TƯƠI NHẤT
+                        bloodType = latestBloodType.ifEmpty { latestOldRecord?.bloodType ?: "" },
+                        phone = latestPhone.ifEmpty { latestOldRecord?.phone ?: "" },
+                        gender = latestGender,
+
+                        // DỮ LIỆU CŨ TỪ BỆNH ÁN TRƯỚC (Nếu có)
+                        age = latestOldRecord?.age ?: "",
+                        identityCard = latestOldRecord?.identityCard ?: "",
+                        healthInsurance = latestOldRecord?.healthInsurance ?: "",
+                        height = latestOldRecord?.height ?: "",
+                        weight = latestOldRecord?.weight ?: "",
+                        allergies = latestOldRecord?.allergies ?: "",
+                        chronicDiseases = latestOldRecord?.chronicDiseases ?: "",
+                        pastSurgeries = latestOldRecord?.pastSurgeries ?: "",
+                        familyMedicalHistory = latestOldRecord?.familyMedicalHistory ?: ""
+                    )
                 }
             } catch (e: Exception) { e.printStackTrace() }
             finally { _isLoading.value = false }
@@ -91,7 +100,7 @@ class MedicalRecordViewModel @Inject constructor() : ViewModel() {
                 val finalRecord = record.copy(id = finalId, doctorId = doctorId, lastUpdated = currentTime)
                 collection.document(finalId).set(finalRecord).await()
 
-                // 🌟 Tự động cập nhật ĐÚNG cái lịch hẹn đó thành COMPLETED
+                // Tự động cập nhật lịch hẹn thành COMPLETED
                 if (record.appointmentId.isNotEmpty() && record.appointmentId != "none") {
                     db.collection("Appointments").document(record.appointmentId)
                         .update("status", "COMPLETED").await()
