@@ -94,7 +94,16 @@ fun AppointmentHistoryScreen(
                 viewModel.confirmPayment(appointmentToPay!!.id)
                 appointmentToPay = null
             },
-            onDismiss = { showQRDialog = false }
+            onDismiss = {
+                // 🌟 Bấm ra ngoài thì chỉ ẩn hộp thoại, giữ lại lịch chờ
+                showQRDialog = false
+            },
+            onCancelTransaction = {
+                // 🌟 Bấm hủy giao dịch thì xóa luôn lịch
+                showQRDialog = false
+                viewModel.deleteAppointment(appointmentToPay!!.id)
+                appointmentToPay = null
+            }
         )
     }
 

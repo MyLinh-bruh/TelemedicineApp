@@ -28,48 +28,41 @@ fun PaymentQRDialog(
     amount: String,
     appointmentId: String,
     onConfirm: () -> Unit,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit, // 🌟 Gọi khi bấm Back thiết bị / Bấm ra ngoài (Giữ lại lịch chờ thanh toán)
+    onCancelTransaction: () -> Unit // 🌟 Gọi khi bấm nút Hủy giao dịch (Xóa thẳng lịch)
 ) {
     val context = LocalContext.current
 
-    // State quản lý việc đóng/mở Dropdown
     var expanded by remember { mutableStateOf(false) }
-    // State lưu tên ngân hàng đang được chọn
     var selectedBankText by remember { mutableStateOf("Chọn ngân hàng của bạn...") }
 
-    // --- STATES CHO MOCKING (GIẢ LẬP) ---
-    var timeLeft by remember { mutableIntStateOf(10 * 60) } // Đếm ngược 10 phút
-    var isChecking by remember { mutableStateOf(false) } // Trạng thái Loading kiểm tra giao dịch
-    var attemptCount by remember { mutableIntStateOf(0) } // Đếm số lần bấm nút để chạy kịch bản Demo
+    var timeLeft by remember { mutableIntStateOf(10 * 60) }
+    var isChecking by remember { mutableStateOf(false) }
+    var attemptCount by remember { mutableIntStateOf(0) }
 
-    // 1. Kịch bản Đếm ngược thời gian
     LaunchedEffect(key1 = timeLeft, key2 = isChecking) {
         if (!isChecking && timeLeft > 0) {
             delay(1000L)
             timeLeft--
         } else if (timeLeft == 0) {
             Toast.makeText(context, "Đã hết thời gian thanh toán!", Toast.LENGTH_LONG).show()
-            onDismiss() // Hết giờ tự động đóng Dialog
+            onDismiss()
         }
     }
 
-    // 2. Kịch bản Kiểm tra giao dịch (Mocking API)
     LaunchedEffect(key1 = isChecking) {
         if (isChecking) {
             if (attemptCount == 1) {
-                // LẦN BẤM ĐẦU TIÊN: Giả lập mạng chậm 3s và báo lỗi (Chưa nhận được tiền)
                 delay(3000L)
                 Toast.makeText(context, "Chưa tìm thấy giao dịch. Vui lòng đợi thêm vài giây và thử lại!", Toast.LENGTH_LONG).show()
-                isChecking = false // Tắt loading để cho phép bấm lại
+                isChecking = false
             } else {
-                // LẦN BẤM THỨ 2 TRỞ ĐI: Giả lập check nhanh 2s và báo Thành công
                 delay(2000L)
-                onConfirm() // Gọi hàm thành công để hiển thị Popup bên BookingScreen
+                onConfirm()
             }
         }
     }
 
-    // Format hiển thị thời gian (MM:SS)
     val minutes = timeLeft / 60
     val seconds = timeLeft % 60
     val timeString = String.format("%02d:%02d", minutes, seconds)
@@ -98,7 +91,7 @@ fun PaymentQRDialog(
     )
 
     AlertDialog(
-        onDismissRequest = { if (!isChecking) onDismiss() }, // Chặn tắt Dialog khi đang Loading
+        onDismissRequest = { if (!isChecking) onDismiss() }, // 🌟 Hành vi khi bấm ra ngoài hoặc nút Back
         title = {
             Text(
                 "Thanh toán qua VietQR",
@@ -112,7 +105,6 @@ fun PaymentQRDialog(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                // HIỂN THỊ THỜI GIAN ĐẾM NGƯỢC
                 Card(
                     colors = CardDefaults.cardColors(containerColor = Color(0xFFFFF3E0)),
                     shape = RoundedCornerShape(8.dp),
@@ -144,13 +136,12 @@ fun PaymentQRDialog(
                 HorizontalDivider()
                 Spacer(modifier = Modifier.height(12.dp))
 
-                // === NÚT TẢI ẢNH ĐỘC LẬP ===
                 OutlinedButton(
                     onClick = { downloadQRImage(context, qrUrl) },
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(8.dp),
                     border = BorderStroke(1.dp, Color(0xFF2563EB)),
-                    enabled = !isChecking // Khóa nút khi đang kiểm tra giao dịch
+                    enabled = !isChecking
                 ) {
                     Text("⬇️ Tải ảnh QR xuống máy", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color(0xFF2563EB))
                 }
@@ -160,7 +151,6 @@ fun PaymentQRDialog(
                 Text("Hoặc tự động lưu & Mở ứng dụng:", fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
                 Spacer(modifier = Modifier.height(8.dp))
 
-                // === NÚT MOMO ===
                 PaymentAppButton("Mở bằng MoMo", isEnabled = !isChecking) {
                     saveQRAndOpenApp(
                         context = context,
@@ -172,7 +162,6 @@ fun PaymentQRDialog(
 
                 Spacer(modifier = Modifier.height(12.dp))
 
-                // === DROPDOWN MENU NGÂN HÀNG ===
                 ExposedDropdownMenuBox(
                     expanded = expanded,
                     onExpandedChange = { if (!isChecking) expanded = !expanded }
@@ -181,7 +170,7 @@ fun PaymentQRDialog(
                         value = selectedBankText,
                         onValueChange = {},
                         readOnly = true,
-                        enabled = !isChecking, // Khóa khi đang check
+                        enabled = !isChecking,
                         trailingIcon = {
                             ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded)
                         },
@@ -215,8 +204,8 @@ fun PaymentQRDialog(
         confirmButton = {
             Button(
                 onClick = {
-                    attemptCount++ // Tăng biến đếm để kích hoạt kịch bản demo
-                    isChecking = true // Bật vòng xoay loading
+                    attemptCount++
+                    isChecking = true
                 },
                 modifier = Modifier.fillMaxWidth().height(48.dp),
                 enabled = !isChecking,
@@ -233,7 +222,8 @@ fun PaymentQRDialog(
         },
         dismissButton = {
             if (!isChecking) {
-                TextButton(onClick = onDismiss, modifier = Modifier.fillMaxWidth()) {
+                // 🌟 GỌI HÀM XÓA KHI BẤM NÚT HỦY GIAO DỊCH NÀY
+                TextButton(onClick = onCancelTransaction, modifier = Modifier.fillMaxWidth()) {
                     Text("Hủy giao dịch", color = Color.Gray)
                 }
             }
@@ -255,7 +245,6 @@ fun PaymentAppButton(appName: String, isEnabled: Boolean = true, onClick: () -> 
     }
 }
 
-// Hàm 1: Chỉ làm nhiệm vụ tải ảnh
 fun downloadQRImage(context: Context, imageUrl: String) {
     try {
         val request = DownloadManager.Request(Uri.parse(imageUrl))
@@ -270,7 +259,6 @@ fun downloadQRImage(context: Context, imageUrl: String) {
     }
 }
 
-// Hàm 2: Kiểm tra App có tồn tại không -> Nếu có mới tải ảnh và mở
 fun saveQRAndOpenApp(
     context: Context,
     imageUrl: String,
@@ -278,12 +266,10 @@ fun saveQRAndOpenApp(
     isPackage: Boolean
 ) {
     try {
-        // 1. Dò tìm xem máy có cài App hay có thể xử lý link ngân hàng không
         val intent: Intent? = if (isPackage) {
             context.packageManager.getLaunchIntentForPackage(target)
         } else {
             val schemeIntent = Intent(Intent.ACTION_VIEW, Uri.parse(target))
-            // Kiểm tra xem có app nào mở được link scheme này không
             if (schemeIntent.resolveActivity(context.packageManager) != null) {
                 schemeIntent
             } else {
@@ -291,16 +277,11 @@ fun saveQRAndOpenApp(
             }
         }
 
-        // 2. Phân nhánh xử lý
         if (intent != null) {
-            // NẾU CÓ APP: Tiến hành tải ảnh ngầm
             downloadQRImage(context, imageUrl)
-
-            // Và tự động chuyển qua app
             intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             context.startActivity(intent)
         } else {
-            // NẾU KHÔNG CÓ APP: Báo lỗi và DỪNG LẠI (Không tải ảnh rác)
             Toast.makeText(context, "Thiết bị chưa cài đặt ứng dụng này!", Toast.LENGTH_SHORT).show()
         }
     } catch (e: Exception) {

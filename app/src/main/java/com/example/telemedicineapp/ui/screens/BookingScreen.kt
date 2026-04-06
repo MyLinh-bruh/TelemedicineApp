@@ -44,6 +44,29 @@ import com.example.telemedicineapp.ui.components.PaymentQRDialog
 import com.example.telemedicineapp.utils.DateItem
 import com.example.telemedicineapp.utils.TimeUtils
 
+// 🌟 HÀM HỖ TRỢ ĐỂ KIỂM TRA CHỒNG LẤN THỜI GIAN (TỪ CODE CỦA LINH)
+private fun timeToMinutes(time: String): Int {
+    return try {
+        val parts = time.trim().split(":")
+        parts[0].toInt() * 60 + parts[1].toInt()
+    } catch (e: Exception) {
+        0
+    }
+}
+
+private fun isOverlapping(currentSlot: String, targetSlot: String): Boolean {
+    val curParts = currentSlot.split("-")
+    val curStart = timeToMinutes(curParts[0])
+    val curEnd = if (curParts.size > 1) timeToMinutes(curParts[1]) else curStart + 30
+
+    val targetParts = targetSlot.split("-")
+    val targetStart = timeToMinutes(targetParts[0])
+    val targetEnd = if (targetParts.size > 1) timeToMinutes(targetParts[1]) else targetStart + 30
+
+    return curStart < targetEnd && curEnd > targetStart
+}
+
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun BookingScreen(
@@ -147,6 +170,7 @@ fun BookingScreen(
             },
             onCancel = {
                 showPaymentWebView = false
+                appointmentViewModel.cancelPendingAppointment()
                 appointmentViewModel.resetState()
                 onBack()
             }
@@ -199,7 +223,7 @@ fun BookingScreen(
 
             if (showQRDialog) {
                 PaymentQRDialog(
-                    amount = "21329",
+                    amount = "150000",
                     appointmentId = "MED-${System.currentTimeMillis() % 10000}",
                     onConfirm = {
                         showQRDialog = false
@@ -211,6 +235,13 @@ fun BookingScreen(
                         appointmentViewModel.resetState()
                         onBack()
                         Toast.makeText(context, "Lịch hẹn đã được lưu vào Lịch sử chờ thanh toán", Toast.LENGTH_LONG).show()
+                    },
+                    onCancelTransaction = {
+                        showQRDialog = false
+                        appointmentViewModel.cancelPendingAppointment()
+                        appointmentViewModel.resetState()
+                        onBack()
+                        Toast.makeText(context, "Đã hủy lịch hẹn", Toast.LENGTH_SHORT).show()
                     }
                 )
             }
@@ -256,13 +287,19 @@ fun BookingScreen(
                     }
                 }
 
+                val defaultMorningSlots = listOf("08:00 - 08:30", "08:30 - 09:00", "09:00 - 09:30", "09:30 - 10:00", "10:00 - 10:30", "10:30 - 11:00", "11:00 - 11:30")
+                val defaultAfternoonSlots = listOf("13:00 - 13:30", "13:30 - 14:00", "14:00 - 14:30", "14:30 - 15:00", "15:00 - 15:30", "15:30 - 16:00", "16:00 - 16:30")
+
+                val morningSlots = schedule?.morningSlots?.takeIf { it.isNotEmpty() } ?: defaultMorningSlots
+                val afternoonSlots = schedule?.afternoonSlots?.takeIf { it.isNotEmpty() } ?: defaultAfternoonSlots
+
                 Column(modifier = Modifier.padding(horizontal = 16.dp)) {
                     Text("Giờ khám *", fontWeight = FontWeight.Bold)
                     Spacer(modifier = Modifier.height(12.dp))
 
                     Text("Buổi sáng", fontWeight = FontWeight.SemiBold, color = Color.Gray, fontSize = 14.sp)
                     TimeSlotGrid(
-                        slots = schedule?.morningSlots ?: emptyList(),
+                        slots = morningSlots,
                         selectedSlot = selectedTimeSlot,
                         bookedSlots = bookedSlots,
                         busySlots = schedule?.busySlots ?: emptyList()
@@ -272,7 +309,7 @@ fun BookingScreen(
 
                     Text("Buổi chiều", fontWeight = FontWeight.SemiBold, color = Color.Gray, fontSize = 14.sp)
                     TimeSlotGrid(
-                        slots = schedule?.afternoonSlots ?: emptyList(),
+                        slots = afternoonSlots,
                         selectedSlot = selectedTimeSlot,
                         bookedSlots = bookedSlots,
                         busySlots = schedule?.busySlots ?: emptyList()
@@ -323,7 +360,7 @@ fun BookingScreen(
                                     dateTimeUtc = utcDateTime,
                                     reason = reason,
                                     status = "PENDING",
-                                    createdAt = System.currentTimeMillis() // THÊM THỜI GIAN TẠO
+                                    createdAt = System.currentTimeMillis()
                                 )
                                 appointmentViewModel.bookAppointment(newAppointment)
                             }
@@ -361,18 +398,30 @@ fun PaymentMethodOption(title: String, isSelected: Boolean, onClick: () -> Unit)
     }
 }
 
+// 🌟 SỬ DỤNG LOGIC isOverlapping() CỦA LINH ĐỂ KIỂM TRA ĐÈ KHUNG GIỜ
 @Composable
-fun TimeSlotGrid(slots: List<String>, selectedSlot: String?, bookedSlots: List<String>, busySlots: List<String>, onSlotSelected: (String) -> Unit) {
+fun TimeSlotGrid(
+    slots: List<String>,
+    selectedSlot: String?,
+    bookedSlots: List<String>,
+    busySlots: List<String>,
+    onSlotSelected: (String) -> Unit
+) {
     val rows = slots.chunked(3)
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         rows.forEach { rowSlots ->
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 rowSlots.forEach { slot ->
+
+                    // So sánh sự chồng chéo của khung giờ trên giao diện và khung giờ trong database
+                    val isBooked = bookedSlots.any { booked -> isOverlapping(slot, booked) }
+                    val isBusy = busySlots.any { busy -> isOverlapping(slot, busy) }
+
                     TimeSlotItem(
                         slot = slot,
                         isSelected = selectedSlot == slot,
-                        isBooked = bookedSlots.contains(slot),
-                        isBusy = busySlots.contains(slot),
+                        isBooked = isBooked,
+                        isBusy = isBusy,
                         modifier = Modifier.weight(1f),
                         onClick = { onSlotSelected(slot) }
                     )
@@ -387,13 +436,13 @@ fun TimeSlotGrid(slots: List<String>, selectedSlot: String?, bookedSlots: List<S
 fun TimeSlotItem(slot: String, isSelected: Boolean, isBooked: Boolean, isBusy: Boolean, modifier: Modifier, onClick: () -> Unit) {
     val isDisable = isBooked || isBusy
     val bgColor = when {
-        isBooked -> Color(0xFFFEE2E2)
-        isBusy -> Color(0xFFEEEEEE)
-        isSelected -> Color(0xFF3B82F6)
+        isBooked -> Color(0xFFFEE2E2) // Màu đỏ nhạt
+        isBusy -> Color(0xFFEEEEEE)  // Màu xám
+        isSelected -> Color(0xFF3B82F6) // Màu xanh dương
         else -> Color.White
     }
     val textColor = when {
-        isBooked -> Color(0xFFDC2626)
+        isBooked -> Color(0xFFDC2626) // Chữ đỏ đậm
         isBusy -> Color.Gray
         isSelected -> Color.White
         else -> Color.Black
@@ -415,6 +464,7 @@ fun TimeSlotItem(slot: String, isSelected: Boolean, isBooked: Boolean, isBusy: B
     }
 }
 
+// 🌟 SỬ DỤNG LOGIC HIỂN THỊ AVATAR BASE64 TỪ CODE CỦA BẠN
 @Composable
 fun DoctorSimpleInfo(doctor: User) {
     Surface(modifier = Modifier.fillMaxWidth().padding(16.dp), color = Color.White, shape = RoundedCornerShape(12.dp), shadowElevation = 1.dp) {
@@ -444,10 +494,10 @@ fun DoctorSimpleInfo(doctor: User) {
 
                     if (bitmap != null) {
                         Image(
-                            bitmap = bitmap.asImageBitmap(), // <-- ĐÃ SỬA CHUẨN CÚ PHÁP
+                            bitmap = bitmap.asImageBitmap(),
                             contentDescription = "Avatar của ${doctor.name}",
                             modifier = Modifier.fillMaxSize(),
-                            contentScale = ContentScale.Crop // <-- ĐÃ SỬA CHUẨN CÚ PHÁP
+                            contentScale = ContentScale.Crop
                         )
                     } else {
                         val initial = doctor.name.trim().split(" ").lastOrNull()?.take(1)?.uppercase() ?: "BS"
