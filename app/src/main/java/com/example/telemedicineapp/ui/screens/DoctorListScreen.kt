@@ -1,9 +1,12 @@
 package com.example.telemedicineapp.ui.screens
 
+import android.util.Base64
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -11,16 +14,20 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import coil.compose.AsyncImage
 import com.example.telemedicineapp.model.User
 import com.example.telemedicineapp.ui.components.DoctorItem
 import com.example.telemedicineapp.ui.components.DoctorShimmer
 import java.text.Normalizer
 
-// --- HÀM CHUẨN HÓA CHUỖI (Giúp lọc không dấu, không phân biệt hoa thường) ---
+// --- HÀM CHUẨN HÓA CHUỖI ---
 fun String.toCleanString(): String {
     val temp = Normalizer.normalize(this, Normalizer.Form.NFD)
     val pattern = "\\p{InCombiningDiacriticalMarks}+".toRegex()
@@ -34,6 +41,8 @@ fun String.toCleanString(): String {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DoctorListScreen(
+    userEmail: String,
+    userImageUrl: String,
     onDoctorClick: (User) -> Unit,
     onLogout: () -> Unit,
     allDoctors: List<User>,
@@ -49,28 +58,30 @@ fun DoctorListScreen(
     val specialties = listOf("Tất cả chuyên khoa", "Tim mạch", "Nhi khoa", "Da liễu", "Nội khoa")
     val locations = listOf("Tất cả khu vực", "Đà Nẵng", "Hà Nội", "TP. Hồ Chí Minh")
 
-    // --- LOGIC LỌC TỐI ƯU GỘP TỪ CODE 2 ---
+    // --- LOGIC XỬ LÝ AVATAR ---
+    val firstLetter = if (userEmail.isNotEmpty()) userEmail.take(1).uppercase() else "?"
+
+    val avatarData = remember(userImageUrl) {
+        if (userImageUrl.isEmpty()) null
+        else if (userImageUrl.startsWith("http")) userImageUrl
+        else {
+            try { Base64.decode(userImageUrl, Base64.DEFAULT) } catch (e: Exception) { null }
+        }
+    }
+
     val filteredDoctors = remember(searchQuery, selectedSpecialty, selectedLocation, allDoctors) {
         allDoctors.filter { doctor ->
             val docNameClean = doctor.name.toCleanString()
             val docSpecClean = doctor.specialty.toCleanString()
             val docAddrClean = doctor.address.toCleanString()
-
             val searchClean = searchQuery.toCleanString()
             val specFilterClean = selectedSpecialty.toCleanString()
             val locFilterClean = selectedLocation.toCleanString()
 
-            // 1. Tìm kiếm theo tên (Tìm chuỗi con)
             val matchesSearch = searchClean.isEmpty() || docNameClean.contains(searchClean)
-
-            // 2. Lọc chuyên khoa (Tách từ để khớp thông minh: "Nhi khoa" khớp "Khoa nhi")
             val filterWords = specFilterClean.split(" ").filter { it.isNotBlank() && it != "tat" && it != "ca" }
-            val matchesSpecialty = selectedSpecialty == "Tất cả chuyên khoa" ||
-                    filterWords.all { word -> docSpecClean.contains(word) }
-
-            // 3. Lọc địa điểm
-            val matchesLocation = selectedLocation == "Tất cả khu vực" ||
-                    docAddrClean.contains(locFilterClean)
+            val matchesSpecialty = selectedSpecialty == "Tất cả chuyên khoa" || filterWords.all { docSpecClean.contains(it) }
+            val matchesLocation = selectedLocation == "Tất cả khu vực" || docAddrClean.contains(locFilterClean)
 
             matchesSearch && matchesSpecialty && matchesLocation
         }
@@ -86,14 +97,62 @@ fun DoctorListScreen(
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+                verticalAlignment = Alignment.Top
             ) {
-                Column {
-                    Text("Khám Phá", fontSize = 24.sp, fontWeight = FontWeight.ExtraBold, color = Color.Black)
-                    Text("Tìm chuyên gia y tế phù hợp", fontSize = 12.sp, color = Color.Gray)
+                // --- PHẦN BÊN TRÁI: AVATAR + CỤM CHỮ ---
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    // 🌟 Hình tròn Avatar
+                    Box(
+                        modifier = Modifier
+                            .size(56.dp)
+                            .clip(CircleShape)
+                            .background(if (avatarData == null) Color(0xFF2563EB) else Color.Transparent)
+                            .border(2.dp, Color(0xFFDBEAFE), CircleShape),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        if (avatarData != null) {
+                            AsyncImage(
+                                model = avatarData,
+                                contentDescription = null,
+                                modifier = Modifier.fillMaxSize().clip(CircleShape),
+                                contentScale = ContentScale.Crop
+                            )
+                        } else {
+                            Text(
+                                text = firstLetter,
+                                color = Color.White,
+                                fontSize = 22.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.width(16.dp))
+
+                    // 🌟 Cụm chữ: Đẩy xuống một chút để cân bằng với Avatar
+                    Column(modifier = Modifier.padding(top = 2.dp)) {
+                        Text(
+                            text = "Xin chào, $firstLetter",
+                            fontSize = 13.sp,
+                            color = Color.Gray,
+                            fontWeight = FontWeight.Medium
+                        )
+                        Text(
+                            text = "Khám Phá",
+                            fontSize = 24.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = Color.Black
+                        )
+                        Text(
+                            text = "Tìm chuyên gia y tế phù hợp",
+                            fontSize = 12.sp,
+                            color = Color.Gray
+                        )
+                    }
                 }
 
-                Box {
+                // --- PHẦN BÊN PHẢI: MENU ---
+                Box(modifier = Modifier.padding(top = 4.dp)) {
                     var showMenu by remember { mutableStateOf(false) }
                     IconButton(
                         onClick = { showMenu = true },
@@ -122,11 +181,7 @@ fun DoctorListScreen(
                         DropdownMenuItem(
                             text = { Text("Hồ sơ bệnh án", fontSize = 14.sp) },
                             leadingIcon = { Icon(Icons.Default.Description, null, modifier = Modifier.size(20.dp)) },
-                            onClick = {
-                                showMenu = false
-                                // Thêm tham số callback onMedicalRecordsClick vào hàm DoctorListScreen
-                                onMedicalRecordsClick()
-                            }
+                            onClick = { showMenu = false; onMedicalRecordsClick() }
                         )
                         HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp), thickness = 0.5.dp)
                         DropdownMenuItem(
@@ -200,7 +255,6 @@ fun DoctorListScreen(
     }
 }
 
-// --- HÀM DROPDOWN PHỤ (Sửa lỗi 'it' và tích hợp vào 1 file) ---
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun FilterDropdown(
