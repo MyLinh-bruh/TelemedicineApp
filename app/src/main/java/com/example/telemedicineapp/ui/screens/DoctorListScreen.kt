@@ -40,6 +40,7 @@ fun DoctorListScreen(
     onRegisterDoctorClick: () -> Unit,
     onProfileClick: () -> Unit,
     onHistoryClick: () -> Unit,
+    onMedicalRecordsClick: () -> Unit,
 ) {
     var searchQuery by remember { mutableStateOf("") }
     var selectedSpecialty by remember { mutableStateOf("Tất cả chuyên khoa") }
@@ -117,6 +118,15 @@ fun DoctorListScreen(
                             text = { Text("Lịch hẹn của tôi", fontSize = 14.sp) },
                             leadingIcon = { Icon(Icons.Default.Event, null, modifier = Modifier.size(20.dp)) },
                             onClick = { showMenu = false; onHistoryClick() }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Hồ sơ bệnh án", fontSize = 14.sp) },
+                            leadingIcon = { Icon(Icons.Default.Description, null, modifier = Modifier.size(20.dp)) },
+                            onClick = {
+                                showMenu = false
+                                // Thêm tham số callback onMedicalRecordsClick vào hàm DoctorListScreen
+                                onMedicalRecordsClick()
+                            }
                         )
                         HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp), thickness = 0.5.dp)
                         DropdownMenuItem(

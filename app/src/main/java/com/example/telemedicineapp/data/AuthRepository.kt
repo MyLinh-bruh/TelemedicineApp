@@ -31,7 +31,6 @@ class AuthRepository @Inject constructor() {
     private val db = FirebaseFirestore.getInstance()
 
     // --- 1. ĐĂNG NHẬP (Dùng e-mail) ---
-    // --- 1. ĐĂNG NHẬP (Dùng e-mail) ---
     suspend fun login(emailInput: String, passInput: String): UserEntity? {
         return try {
             val snapshot = db.collection("Users")
@@ -186,5 +185,22 @@ class AuthRepository @Inject constructor() {
             docRef.update(updates).await()
             true
         } catch (e: Exception) { false }
+    }
+
+    // --- 8. LẤY HỒ SƠ BỆNH ÁN CỦA BỆNH NHÂN (Đã chuyển vào trong class) ---
+    fun getMedicalRecordsForPatient(patientId: String): Flow<List<com.example.telemedicineapp.model.MedicalRecord>> = callbackFlow {
+        val listener = db.collection("MedicalRecords")
+            .whereEqualTo("patientId", patientId)
+            .addSnapshotListener { snapshot, error ->
+                if (error != null) {
+                    close(error)
+                    return@addSnapshotListener
+                }
+                if (snapshot != null) {
+                    val records = snapshot.toObjects(com.example.telemedicineapp.model.MedicalRecord::class.java)
+                    trySend(records)
+                }
+            }
+        awaitClose { listener.remove() }
     }
 }

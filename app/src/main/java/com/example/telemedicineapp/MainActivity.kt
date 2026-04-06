@@ -34,7 +34,6 @@ import com.example.telemedicineapp.ui.theme.TelemedicineAppTheme
 import com.google.firebase.messaging.FirebaseMessaging
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
-import com.example.telemedicineapp.ui.screens.DoctorListScreen
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
@@ -91,7 +90,7 @@ fun AppNavigation(
 
     NavHost(navController = navController, startDestination = startDestination) {
 
-        // 1. MÀN HÌNH ĐĂNG NHẬP (ĐÃ FIX: Truyền authViewModel)
+        // 1. MÀN HÌNH ĐĂNG NHẬP
         composable("login_screen") {
             LoginScreen(
                 viewModel = authViewModel,
@@ -171,7 +170,8 @@ fun AppNavigation(
                 },
                 onProfileClick = { navController.navigate("patient_profile") },
                 onRegisterDoctorClick = { navController.navigate("register_doctor_screen") },
-                onHistoryClick = { navController.navigate("appointment_history") }
+                onHistoryClick = { navController.navigate("appointment_history") },
+                onMedicalRecordsClick = { navController.navigate("patient_medical_records") }
             )
         }
 
@@ -185,7 +185,42 @@ fun AppNavigation(
             AppointmentHistoryScreen(onBack = { navController.popBackStack() })
         }
 
-        // 8. CHI TIẾT THÔNG TIN BÁC SĨ
+        // 8. MÀN HÌNH DANH SÁCH BỆNH ÁN CỦA BỆNH NHÂN
+        composable("patient_medical_records") {
+            val user = currentUser
+            if (user != null) {
+                PatientMedicalRecordScreen(
+                    patientId = user.id,
+                    onBack = { navController.popBackStack() },
+                    onRecordClick = { record ->
+                        // 🌟 ĐÃ THÊM: Gọi lệnh chuyển sang màn hình xem chi tiết
+                        navController.navigate("patient_record_detail/${record.id}")
+                    }
+                )
+            } else {
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator()
+                }
+            }
+        }
+
+        // 🌟 9. THÊM MỚI: MÀN HÌNH CHI TIẾT BỆNH ÁN (CHỈ XEM)
+        composable(
+            route = "patient_record_detail/{recordId}",
+            arguments = listOf(navArgument("recordId") { type = NavType.StringType })
+        ) { backStackEntry ->
+            val recordId = backStackEntry.arguments?.getString("recordId") ?: ""
+
+            MedicalRecordScreen(
+                patientId = currentUser?.id ?: "",
+                patientName = currentUser?.name ?: "",
+                doctorId = "", // Bệnh nhân xem nên không cần ID bác sĩ
+                onBack = { navController.popBackStack() },
+                isReadOnly = true // 🌟 Bật cờ chỉ xem
+            )
+        }
+
+        // 10. CHI TIẾT THÔNG TIN BÁC SĨ
         composable(
             route = "doctor_detail/{doctorId}",
             arguments = listOf(navArgument("doctorId") { type = NavType.StringType })
@@ -202,7 +237,7 @@ fun AppNavigation(
             }
         }
 
-        // 9. MÀN HÌNH ĐẶT LỊCH HẸN
+        // 11. MÀN HÌNH ĐẶT LỊCH HẸN
         composable(
             route = "booking_screen/{doctorId}",
             arguments = listOf(navArgument("doctorId") { type = NavType.StringType })
@@ -224,7 +259,7 @@ fun AppNavigation(
             }
         }
 
-        // 10. DASHBOARD DÀNH CHO BÁC SĨ
+        // 12. DASHBOARD DÀNH CHO BÁC SĨ
         composable("doctor_dashboard") {
             val user = currentUser
             if (user != null && user.id.isNotEmpty()) {
@@ -248,7 +283,7 @@ fun AppNavigation(
             }
         }
 
-        // 11. MÀN HÌNH TẠO/XEM BỆNH ÁN
+        // 13. MÀN HÌNH TẠO/XEM BỆNH ÁN CỦA BÁC SĨ
         composable(
             route = "medical_record_screen/{patientId}/{patientName}/{doctorId}",
             arguments = listOf(
@@ -265,7 +300,8 @@ fun AppNavigation(
                 patientId = pId,
                 patientName = pName,
                 doctorId = dId,
-                onBack = { navController.popBackStack() }
+                onBack = { navController.popBackStack() },
+                isReadOnly = false // Bác sĩ được phép chỉnh sửa
             )
         }
     }

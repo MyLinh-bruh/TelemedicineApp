@@ -29,6 +29,8 @@ fun MedicalRecordScreen(
     patientName: String,
     doctorId: String,
     onBack: () -> Unit,
+    // 🌟 THÊM THAM SỐ NÀY ĐỂ XÁC ĐỊNH CHẾ ĐỘ XEM
+    isReadOnly: Boolean = false,
     viewModel: MedicalRecordViewModel = hiltViewModel()
 ) {
     val context = LocalContext.current
@@ -42,7 +44,8 @@ fun MedicalRecordScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Hồ sơ Bệnh án", fontWeight = FontWeight.Bold) },
+                // 🌟 THAY ĐỔI TIÊU ĐỀ THEO CHẾ ĐỘ
+                title = { Text(if (isReadOnly) "Chi tiết Bệnh án" else "Hồ sơ Bệnh án", fontWeight = FontWeight.Bold) },
                 navigationIcon = {
                     IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, contentDescription = "Back") }
                 },
@@ -92,70 +95,74 @@ fun MedicalRecordScreen(
                         Text("Cập nhật lần cuối: ${currentRecord.lastUpdated}", fontSize = 12.sp, color = Color.Gray)
                     }
 
+                    // Lưu ý: Nếu component PatientInfoForm này của bạn chưa có thuộc tính `isReadOnly`,
+                    // bạn cũng cần sửa component đó tương tự để các ô nhập không chỉnh sửa được.
                     PatientInfoForm(
-                        name = name, onNameChange = { name = it },
-                        age = age, onAgeChange = { age = it },
-                        cccd = cccd, onCccdChange = { cccd = it },
-                        phone = phone, onPhoneChange = { phone = it },
-                        bhyt = bhyt, onBhytChange = { bhyt = it }
+                        name = name, onNameChange = { if (!isReadOnly) name = it },
+                        age = age, onAgeChange = { if (!isReadOnly) age = it },
+                        cccd = cccd, onCccdChange = { if (!isReadOnly) cccd = it },
+                        phone = phone, onPhoneChange = { if (!isReadOnly) phone = it },
+                        bhyt = bhyt, onBhytChange = { if (!isReadOnly) bhyt = it }
                     )
 
                     SectionCard(title = "Chỉ số cơ thể & Nhóm máu") {
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            RecordTextField(value = height, label = "Chiều cao", onValueChange = { height = it }, modifier = Modifier.weight(1f))
-                            RecordTextField(value = weight, label = "Cân nặng", onValueChange = { weight = it }, modifier = Modifier.weight(1f))
-                            RecordTextField(value = bloodType, label = "Máu", onValueChange = { bloodType = it }, modifier = Modifier.weight(1f))
+                            RecordTextField(value = height, label = "Chiều cao", onValueChange = { height = it }, isReadOnly = isReadOnly, modifier = Modifier.weight(1f))
+                            RecordTextField(value = weight, label = "Cân nặng", onValueChange = { weight = it }, isReadOnly = isReadOnly, modifier = Modifier.weight(1f))
+                            RecordTextField(value = bloodType, label = "Máu", onValueChange = { bloodType = it }, isReadOnly = isReadOnly, modifier = Modifier.weight(1f))
                         }
                     }
 
                     SectionCard(title = "Chỉ số Sinh tồn") {
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            RecordTextField(value = bloodPressure, label = "Huyết áp", onValueChange = { bloodPressure = it }, modifier = Modifier.weight(1f))
-                            RecordTextField(value = heartRate, label = "Nhịp tim", onValueChange = { heartRate = it }, modifier = Modifier.weight(1f))
-                            RecordTextField(value = temperature, label = "Nhiệt độ", onValueChange = { temperature = it }, modifier = Modifier.weight(1f))
+                            RecordTextField(value = bloodPressure, label = "Huyết áp", onValueChange = { bloodPressure = it }, isReadOnly = isReadOnly, modifier = Modifier.weight(1f))
+                            RecordTextField(value = heartRate, label = "Nhịp tim", onValueChange = { heartRate = it }, isReadOnly = isReadOnly, modifier = Modifier.weight(1f))
+                            RecordTextField(value = temperature, label = "Nhiệt độ", onValueChange = { temperature = it }, isReadOnly = isReadOnly, modifier = Modifier.weight(1f))
                         }
                     }
 
                     SectionCard(title = "Tiền sử Y tế") {
-                        RecordTextField(value = allergies, label = "Dị ứng", onValueChange = { allergies = it }, singleLine = false)
-                        RecordTextField(value = chronicDiseases, label = "Bệnh mãn tính", onValueChange = { chronicDiseases = it }, singleLine = false)
-                        RecordTextField(value = pastSurgeries, label = "Tiền sử phẫu thuật", onValueChange = { pastSurgeries = it }, singleLine = false)
+                        RecordTextField(value = allergies, label = "Dị ứng", onValueChange = { allergies = it }, isReadOnly = isReadOnly, singleLine = false)
+                        RecordTextField(value = chronicDiseases, label = "Bệnh mãn tính", onValueChange = { chronicDiseases = it }, isReadOnly = isReadOnly, singleLine = false)
+                        RecordTextField(value = pastSurgeries, label = "Tiền sử phẫu thuật", onValueChange = { pastSurgeries = it }, isReadOnly = isReadOnly, singleLine = false)
                     }
 
                     SectionCard(title = "Tình trạng lâm sàng & Chẩn đoán") {
-                        RecordTextField(value = currentSymptoms, label = "Triệu chứng", onValueChange = { currentSymptoms = it }, singleLine = false, minLines = 2)
-                        RecordTextField(value = diagnosis, label = "Chẩn đoán", onValueChange = { diagnosis = it }, singleLine = false, minLines = 2)
-                        RecordTextField(value = prescription, label = "Kê đơn / Điều trị", onValueChange = { prescription = it }, singleLine = false, minLines = 3)
+                        RecordTextField(value = currentSymptoms, label = "Triệu chứng", onValueChange = { currentSymptoms = it }, isReadOnly = isReadOnly, singleLine = false, minLines = 2)
+                        RecordTextField(value = diagnosis, label = "Chẩn đoán", onValueChange = { diagnosis = it }, isReadOnly = isReadOnly, singleLine = false, minLines = 2)
+                        RecordTextField(value = prescription, label = "Kê đơn / Điều trị", onValueChange = { prescription = it }, isReadOnly = isReadOnly, singleLine = false, minLines = 3)
                     }
 
                     Spacer(modifier = Modifier.height(8.dp))
 
-                    // 🌟 NÚT XÁC NHẬN & GỬI PHIẾU KHÁM (MÀU XANH LÁ)
-                    Button(
-                        onClick = {
-                            val updatedRecord = currentRecord.copy(
-                                patientName = name, // Cập nhật cả tên nếu bác sĩ sửa
-                                height = height, weight = weight, bloodType = bloodType,
-                                bloodPressure = bloodPressure, heartRate = heartRate, temperature = temperature,
-                                allergies = allergies, chronicDiseases = chronicDiseases, pastSurgeries = pastSurgeries,
-                                currentSymptoms = currentSymptoms, diagnosis = diagnosis, prescription = prescription
-                            )
-                            viewModel.saveRecord(updatedRecord, doctorId) { success ->
-                                if (success) {
-                                    Toast.makeText(context, "Đã gửi phiếu khám cho bệnh nhân $name!", Toast.LENGTH_LONG).show()
-                                    onBack()
-                                } else {
-                                    Toast.makeText(context, "Lỗi khi lưu hồ sơ!", Toast.LENGTH_SHORT).show()
+                    // 🌟 ẨN NÚT LƯU KHI CHỈ XEM
+                    if (!isReadOnly) {
+                        Button(
+                            onClick = {
+                                val updatedRecord = currentRecord.copy(
+                                    patientName = name,
+                                    height = height, weight = weight, bloodType = bloodType,
+                                    bloodPressure = bloodPressure, heartRate = heartRate, temperature = temperature,
+                                    allergies = allergies, chronicDiseases = chronicDiseases, pastSurgeries = pastSurgeries,
+                                    currentSymptoms = currentSymptoms, diagnosis = diagnosis, prescription = prescription
+                                )
+                                viewModel.saveRecord(updatedRecord, doctorId) { success ->
+                                    if (success) {
+                                        Toast.makeText(context, "Đã gửi phiếu khám cho bệnh nhân $name!", Toast.LENGTH_LONG).show()
+                                        onBack()
+                                    } else {
+                                        Toast.makeText(context, "Lỗi khi lưu hồ sơ!", Toast.LENGTH_SHORT).show()
+                                    }
                                 }
-                            }
-                        },
-                        modifier = Modifier.fillMaxWidth().height(56.dp),
-                        shape = RoundedCornerShape(12.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF10B981))
-                    ) {
-                        Icon(Icons.Default.Send, contentDescription = null, tint = Color.White)
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("XÁC NHẬN & GỬI PHIẾU KHÁM", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                            },
+                            modifier = Modifier.fillMaxWidth().height(56.dp),
+                            shape = RoundedCornerShape(12.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF10B981))
+                        ) {
+                            Icon(Icons.Default.Send, contentDescription = null, tint = Color.White)
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("XÁC NHẬN & GỬI PHIẾU KHÁM", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                        }
                     }
 
                     Spacer(modifier = Modifier.height(32.dp))
@@ -187,16 +194,25 @@ fun RecordTextField(
     label: String,
     onValueChange: (String) -> Unit,
     modifier: Modifier = Modifier,
+    isReadOnly: Boolean = false, // 🌟 THÊM THAM SỐ NÀY
     singleLine: Boolean = true,
     minLines: Int = 1
 ) {
     OutlinedTextField(
         value = value,
-        onValueChange = onValueChange,
+        onValueChange = { if (!isReadOnly) onValueChange(it) }, // Khóa nhập liệu nếu là readOnly
         label = { Text(label, fontSize = 13.sp) },
+        readOnly = isReadOnly, // Vô hiệu hóa bàn phím bật lên
+        enabled = !isReadOnly, // 🌟 Vô hiệu hóa tương tác (làm xám)
         modifier = modifier.fillMaxWidth().padding(vertical = 4.dp),
         singleLine = singleLine,
         minLines = minLines,
-        shape = RoundedCornerShape(8.dp)
+        shape = RoundedCornerShape(8.dp),
+        // Để không bị xám quá mức khi readOnly (tuỳ chọn)
+        colors = OutlinedTextFieldDefaults.colors(
+            disabledTextColor = Color.Black,
+            disabledBorderColor = Color.LightGray,
+            disabledLabelColor = Color.Gray,
+        )
     )
 }
