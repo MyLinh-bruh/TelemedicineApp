@@ -163,17 +163,6 @@ fun ProfileTab(
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            // --- 3. THỐNG KÊ ---
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                StatCard("BỆNH NHÂN", "${patientRecords.size}")
-                StatCard("KINH NGHIỆM", "10 Năm")
-                StatCard("PHÍ KHÁM", "300K", valueColor = Color(0xFF2563EB))
-            }
-
-            Spacer(modifier = Modifier.height(24.dp))
 
             // --- 4. BỆNH VIỆN & ĐỊA CHỈ ---
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -244,35 +233,63 @@ fun ProfileTab(
                 }
             } else {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+
                     filteredRecords.forEach { record ->
                         Card(
                             modifier = Modifier
                                 .fillMaxWidth()
+                                .padding(bottom = 8.dp)
                                 .clickable {
-                                    val pName = if (record.patientName.isBlank()) "Ẩn danh" else record.patientName
-                                    onPatientClick(record.patientId, pName)
+                                    // 🌟 SỬA TẠI ĐÂY: Truyền record.id (ID Duy nhất của phiên khám)
+                                    // thay vì record.patientId để mở đúng nội dung của giờ khám đó.
+                                    onPatientClick(record.id, record.patientName)
                                 },
                             colors = CardDefaults.cardColors(containerColor = Color.White),
-                            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-                            shape = RoundedCornerShape(12.dp)
+                            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
                         ) {
                             Column(Modifier.padding(16.dp)) {
                                 Row(
+                                    modifier = Modifier.fillMaxWidth(),
                                     horizontalArrangement = Arrangement.SpaceBetween,
-                                    modifier = Modifier.fillMaxWidth()
+                                    verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     Text(
-                                        text = if (record.patientName.isBlank()) "Bệnh nhân ẩn danh" else record.patientName,
-                                        fontWeight = FontWeight.Bold,
-                                        fontSize = 16.sp,
-                                        color = Color(0xFF1E293B)
+                                        text = record.patientName.ifBlank { "Bệnh nhân ẩn danh" },
+                                        style = MaterialTheme.typography.titleMedium,
+                                        fontWeight = FontWeight.Bold
                                     )
-                                    Text(text = record.lastUpdated.split(" ")[0], fontSize = 12.sp, color = Color.Gray)
+
+                                    // Hiển thị ngày giờ cụ thể của phiên khám này
+                                    Surface(
+                                        color = Color(0xFFE0F2FE),
+                                        shape = RoundedCornerShape(16.dp)
+                                    ) {
+                                        Text(
+                                            text = record.lastUpdated,
+                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
+                                            fontSize = 11.sp,
+                                            color = Color(0xFF0369A1),
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
                                 }
-                                Spacer(Modifier.height(8.dp))
-                                Text(text = "Triệu chứng: ${record.currentSymptoms}", fontSize = 13.sp, color = Color.DarkGray, maxLines = 1)
-                                Spacer(Modifier.height(4.dp))
-                                Text(text = "Chẩn đoán: ${record.diagnosis}", fontSize = 13.sp, color = Color(0xFF2563EB), maxLines = 1, fontWeight = FontWeight.Medium)
+
+                                Spacer(modifier = Modifier.height(8.dp))
+
+                                Text(
+                                    text = "Triệu chứng: ${record.currentSymptoms}",
+                                    fontSize = 13.sp,
+                                    maxLines = 1,
+                                    color = Color.DarkGray
+                                )
+
+                                Text(
+                                    text = "Chẩn đoán: ${record.diagnosis}",
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = Color(0xFF2563EB),
+                                    maxLines = 1
+                                )
                             }
                         }
                     }
@@ -280,19 +297,5 @@ fun ProfileTab(
             }
             Spacer(modifier = Modifier.height(32.dp))
         }
-    }
-}
-
-@Composable
-fun StatCard(title: String, value: String, valueColor: Color = Color.Black) {
-    Column(
-        modifier = Modifier
-            .background(Color(0xFFF8FAFC), RoundedCornerShape(12.dp))
-            .padding(vertical = 16.dp, horizontal = 20.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        Text(title, fontSize = 10.sp, color = Color.Gray, fontWeight = FontWeight.Bold)
-        Spacer(modifier = Modifier.height(8.dp))
-        Text(value, fontSize = 16.sp, color = valueColor, fontWeight = FontWeight.ExtraBold)
     }
 }
