@@ -172,9 +172,13 @@ fun AppNavigation(
             )
         }
 
-        // 5. MÀN HÌNH TRANG CHỦ BỆNH NHÂN
+        // 5. MÀN HÌNH TRANG CHỦ BỆNH NHÂN (Đã sửa lỗi truyền Email và Avatar)
         composable("patient_home") {
+            val user = currentUser // Lấy user hiện tại từ AuthViewModel
+
             DoctorListScreen(
+                userEmail = user?.email ?: "Guest", // Truyền email
+                userImageUrl = user?.imageUrl ?: "", // Truyền ảnh đại diện (Base64)
                 allDoctors = approvedDoctorsForPatient,
                 onDoctorClick = { doctor ->
                     if (doctor.id.isNotEmpty()) navController.navigate("doctor_detail/${doctor.id}")
@@ -220,13 +224,11 @@ fun AppNavigation(
             }
         }
 
-        // 9. CHI TIẾT BỆNH ÁN (CHỈ XEM - DÀNH CHO BỆNH NHÂN)
+        // 9. CHI TIẾT BỆNH ÁN
         composable(
             route = "patient_record_detail/{recordId}",
             arguments = listOf(navArgument("recordId") { type = NavType.StringType })
         ) { backStackEntry ->
-            val recordId = backStackEntry.arguments?.getString("recordId") ?: ""
-
             MedicalRecordScreen(
                 patientId = currentUser?.email ?: "", // 🌟 ĐÃ SỬA: Dùng Email
                 patientName = currentUser?.name ?: "",
@@ -297,7 +299,7 @@ fun AppNavigation(
             }
         }
 
-        // 13. MÀN HÌNH TẠO/XEM BỆNH ÁN (CÓ THỂ SỬA - DÀNH CHO BÁC SĨ)
+        // 13. MÀN HÌNH TẠO/XEM BỆNH ÁN
         composable(
             route = "medical_record_screen/{patientId}/{patientName}/{doctorId}",
             arguments = listOf(
@@ -315,7 +317,7 @@ fun AppNavigation(
                 patientName = pName,
                 doctorId = dId,
                 onBack = { navController.popBackStack() },
-                isReadOnly = false // Mặc định bác sĩ được phép chỉnh sửa
+                isReadOnly = false
             )
         }
     }
