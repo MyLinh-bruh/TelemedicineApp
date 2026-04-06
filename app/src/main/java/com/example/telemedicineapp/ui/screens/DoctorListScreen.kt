@@ -19,10 +19,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.telemedicineapp.model.User
 import com.example.telemedicineapp.ui.components.DoctorItem
-import com.example.telemedicineapp.ui.components.DoctorShimmer
 import androidx.compose.material.icons.filled.MedicalServices
 import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.Event // Dùng Event thay cho DateRange để tránh lỗi thư viện
+import androidx.compose.material.icons.filled.Event
+import com.example.telemedicineapp.ui.components.DoctorShimmer
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -32,7 +32,7 @@ fun DoctorListScreen(
     allDoctors: List<User>,
     onRegisterDoctorClick: () -> Unit,
     onProfileClick: () -> Unit,
-    onHistoryClick: () -> Unit, // Callback để điều hướng lịch sử
+    onHistoryClick: () -> Unit,
 ) {
     var searchQuery by remember { mutableStateOf("") }
     var selectedSpecialty by remember { mutableStateOf("Tất cả chuyên khoa") }

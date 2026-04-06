@@ -59,6 +59,7 @@ class AuthViewModel @Inject constructor(
         }
     }
 
+    // 🌟 ĐÃ SỬA: Hàm này giờ nằm gọn gàng BÊN TRONG class và convert dữ liệu an toàn
     private fun observeCurrentUser() {
         val savedEmail = tokenManager.getEmail()
 
@@ -69,13 +70,37 @@ class AuthViewModel @Inject constructor(
                         Log.e("AUTH_ERROR", "Firestore Error: ${error.message}")
                         return@addSnapshotListener
                     }
+
                     if (snapshot != null && !snapshot.isEmpty) {
-                        val doc = snapshot.documents[0]
-                        val user = doc.toObject(User::class.java)
-                        _currentUser.value = user?.copy(id = doc.id)
+                        try {
+                            val doc = snapshot.documents[0]
+                            // Dùng UserEntity để hứng dữ liệu String từ Firebase
+                            val userEntity = doc.toObject(com.example.telemedicineapp.data.UserEntity::class.java)
+
+                            if (userEntity != null) {
+                                // Ép kiểu an toàn từ String sang Enum
+                                val role = try { Role.valueOf(userEntity.role.uppercase()) } catch (e: Exception) { Role.PATIENT }
+                                val status = try { DoctorStatus.valueOf(userEntity.doctorStatus.uppercase()) } catch (e: Exception) { DoctorStatus.NONE }
+
+                                // Cập nhật lại currentUser
+                                _currentUser.value = User(
+                                    id = doc.id, // Lấy ID chuẩn từ Document
+                                    email = userEntity.email,
+                                    name = userEntity.name,
+                                    role = role,
+                                    doctorStatus = status,
+                                    specialty = userEntity.specialty,
+                                    hospitalName = userEntity.hospitalName,
+                                    imageUrl = userEntity.imageUrl,
+                                    certificateUrl = userEntity.certificateUrl
+                                )
+                            }
+                        } catch (e: Exception) {
+                            Log.e("AUTH_ERROR", "Lỗi convert dữ liệu Firebase: ${e.message}")
+                        }
                     } else {
                         Log.d("AUTH_DEBUG", "Không tìm thấy user với Email: $savedEmail")
-                        _currentUser.value = null
+                        // KHÔNG gán _currentUser.value = null ở đây nữa để tránh mất dữ liệu do cache mạng
                     }
                 }
         } else {
@@ -170,7 +195,7 @@ class AuthViewModel @Inject constructor(
                             specialty = userEntity.specialty,
                             hospitalName = userEntity.hospitalName,
                             imageUrl = userEntity.imageUrl,
-                            certificateUrl = userEntity.certificateUrl // 🌟 ĐÃ THÊM trường chứng chỉ
+                            certificateUrl = userEntity.certificateUrl
                         )
 
                         _currentUser.value = userModel
@@ -178,7 +203,7 @@ class AuthViewModel @Inject constructor(
                         tokenManager.saveEmail(emailInput)
                         tokenManager.saveSession("Token_${UUID.randomUUID()}", role.name, status.name)
 
-                        // 🌟 KÍCH HOẠT ĐỒNG BỘ REALTIME NGAY LẬP TỨC
+                        // Đồng bộ Realtime
                         observeCurrentUser()
 
                         _loginSuccess.value = role

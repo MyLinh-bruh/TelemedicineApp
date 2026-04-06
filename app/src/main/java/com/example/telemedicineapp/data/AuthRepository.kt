@@ -31,6 +31,7 @@ class AuthRepository @Inject constructor() {
     private val db = FirebaseFirestore.getInstance()
 
     // --- 1. ĐĂNG NHẬP (Dùng e-mail) ---
+    // --- 1. ĐĂNG NHẬP (Dùng e-mail) ---
     suspend fun login(emailInput: String, passInput: String): UserEntity? {
         return try {
             val snapshot = db.collection("Users")

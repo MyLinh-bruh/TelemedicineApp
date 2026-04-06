@@ -34,6 +34,7 @@ import com.example.telemedicineapp.ui.theme.TelemedicineAppTheme
 import com.google.firebase.messaging.FirebaseMessaging
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
+import com.example.telemedicineapp.ui.screens.DoctorListScreen
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {

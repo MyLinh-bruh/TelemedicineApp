@@ -74,17 +74,23 @@ class DoctorDashboardViewModel : ViewModel() {
     )
     val availableSlotsForSetup: StateFlow<List<String>> = _availableSlotsForSetup.asStateFlow()
 
+    // 🌟 ĐÃ FIX: Lấy Document ID để hàm xóa không bị lỗi
     fun fetchBusySchedules(doctorId: String) {
         db.collection("DoctorSchedules")
             .whereEqualTo("doctorId", doctorId)
-            .addSnapshotListener { snapshot, _ ->
+            .addSnapshotListener { snapshot, error ->
+                if (error != null) return@addSnapshotListener
+
                 if (snapshot != null) {
-                    _busySchedules.value = snapshot.toObjects(DoctorSchedule::class.java)
+                    val list = snapshot.documents.mapNotNull { doc ->
+                        val schedule = doc.toObject(DoctorSchedule::class.java)
+                        schedule?.copy(id = doc.id)
+                    }
+                    _busySchedules.value = list
                 }
             }
     }
 
-    // 🌟 ĐÃ ĐƯA VÀO TRONG CLASS: Hàm load khung giờ
     fun loadSlotsForDate(date: String) {
         _availableSlotsForSetup.value = listOf(
             "08:00", "09:00", "10:00", "11:00",
@@ -92,7 +98,6 @@ class DoctorDashboardViewModel : ViewModel() {
         )
     }
 
-    // 🌟 ĐÃ ĐƯA VÀO TRONG CLASS: Hàm lưu lịch nghỉ
     fun saveBusyRange(
         doctorId: String,
         startDate: String,
@@ -100,7 +105,6 @@ class DoctorDashboardViewModel : ViewModel() {
         slots: List<String>,
         onComplete: (Boolean) -> Unit
     ) {
-        // Logic lưu tạm thời để giao diện không lỗi
         val data = hashMapOf(
             "doctorId" to doctorId,
             "date" to startDate,
@@ -122,4 +126,4 @@ class DoctorDashboardViewModel : ViewModel() {
         fetchBusySchedules(doctorId)
         fetchCalendarData(doctorId)
     }
-} // Kết thúc class ở đây
+}
