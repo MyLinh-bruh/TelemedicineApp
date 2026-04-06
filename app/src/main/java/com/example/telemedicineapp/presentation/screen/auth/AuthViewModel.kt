@@ -1,6 +1,5 @@
 package com.example.telemedicineapp.presentation.screens.auth
 
-import android.net.Uri
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -59,7 +58,6 @@ class AuthViewModel @Inject constructor(
         }
     }
 
-    // 🌟 ĐÃ SỬA: Hàm này giờ nằm gọn gàng BÊN TRONG class và convert dữ liệu an toàn
     private fun observeCurrentUser() {
         val savedEmail = tokenManager.getEmail()
 
@@ -74,18 +72,14 @@ class AuthViewModel @Inject constructor(
                     if (snapshot != null && !snapshot.isEmpty) {
                         try {
                             val doc = snapshot.documents[0]
-                            // Dùng UserEntity để hứng dữ liệu String từ Firebase
                             val userEntity = doc.toObject(com.example.telemedicineapp.data.UserEntity::class.java)
 
                             if (userEntity != null) {
-                                // Ép kiểu an toàn từ String sang Enum
                                 val role = try { Role.valueOf(userEntity.role.uppercase()) } catch (e: Exception) { Role.PATIENT }
                                 val status = try { DoctorStatus.valueOf(userEntity.doctorStatus.uppercase()) } catch (e: Exception) { DoctorStatus.NONE }
 
-                                // Cập nhật lại currentUser
-                                // Bạn thay khối này vào trong observeCurrentUser() và login() nhé
                                 _currentUser.value = User(
-                                    id = doc.id, // Ở hàm login thì là id = userEntity.id
+                                    id = doc.id,
                                     email = userEntity.email,
                                     name = userEntity.name,
                                     role = role,
@@ -96,12 +90,9 @@ class AuthViewModel @Inject constructor(
                                     certificateUrl = userEntity.certificateUrl,
                                     phone = userEntity.phone,
                                     address = userEntity.address,
-                                    gender = userEntity.gender,
                                     description = userEntity.description,
                                     bankName = userEntity.bankName,
-                                    bankAccountNumber = userEntity.bankAccountNumber,
-                                    bloodType = userEntity.bloodType,
-                                    medicalHistory = userEntity.medicalHistory
+                                    bankAccountNumber = userEntity.bankAccountNumber
                                 )
                             }
                         } catch (e: Exception) {
@@ -109,7 +100,6 @@ class AuthViewModel @Inject constructor(
                         }
                     } else {
                         Log.d("AUTH_DEBUG", "Không tìm thấy user với Email: $savedEmail")
-                        // KHÔNG gán _currentUser.value = null ở đây nữa để tránh mất dữ liệu do cache mạng
                     }
                 }
         } else {
@@ -134,10 +124,10 @@ class AuthViewModel @Inject constructor(
         }.launchIn(viewModelScope)
     }
 
-    // 🌟 ĐÃ SỬA: Thay Uri? thành String để nhận chuỗi Base64
+    // 🌟 ĐÃ CẬP NHẬT TRƯỜNG ADDRESS TẠI ĐÂY
     fun registerDoctorRequest(
         name: String, email: String, pass: String,
-        specialty: String, hospitalName: String, certificateImage: String
+        specialty: String, hospitalName: String, address: String, certificateImage: String
     ) {
         viewModelScope.launch {
             if (certificateImage.isBlank()) {
@@ -145,8 +135,9 @@ class AuthViewModel @Inject constructor(
                 return@launch
             }
             _isLoading.value = true
-            // Cập nhật tham số gọi authRepo
-            val result = authRepo.registerDoctorRequest(name, email, pass, specialty, hospitalName, certificateImage)
+
+            // Truyền address xuống cho Repository
+            val result = authRepo.registerDoctorRequest(name, email, pass, specialty, hospitalName, address, certificateImage)
 
             if (result == RegisterResult.SUCCESS) {
                 tokenManager.savePendingEmail(email)
@@ -206,7 +197,12 @@ class AuthViewModel @Inject constructor(
                             specialty = userEntity.specialty,
                             hospitalName = userEntity.hospitalName,
                             imageUrl = userEntity.imageUrl,
-                            certificateUrl = userEntity.certificateUrl
+                            certificateUrl = userEntity.certificateUrl,
+                            phone = userEntity.phone,
+                            address = userEntity.address,
+                            description = userEntity.description,
+                            bankName = userEntity.bankName,
+                            bankAccountNumber = userEntity.bankAccountNumber
                         )
 
                         _currentUser.value = userModel
@@ -214,9 +210,7 @@ class AuthViewModel @Inject constructor(
                         tokenManager.saveEmail(emailInput)
                         tokenManager.saveSession("Token_${UUID.randomUUID()}", role.name, status.name)
 
-                        // Đồng bộ Realtime
                         observeCurrentUser()
-
                         _loginSuccess.value = role
                     }
                 } else {
@@ -245,24 +239,18 @@ class AuthViewModel @Inject constructor(
         }
     }
 
-    // 🌟 MỚI: HÀM XÓA HÀNG LOẠT BÁC SĨ TỪ FIRESTORE
     fun deleteSelectedDoctors(doctorIds: List<String>) {
         if (doctorIds.isEmpty()) {
             _errorMessage.value = "Vui lòng chọn ít nhất 1 bác sĩ để xóa!"
             return
         }
-
         _isLoading.value = true
-
-        // Sử dụng Firebase Batch Write để xóa cùng lúc nhiều dòng
         val batch = db.batch()
-
         doctorIds.forEach { id ->
             val doctorRef = db.collection("Users").document(id)
             batch.delete(doctorRef)
         }
 
-        // Thực thi việc xóa
         batch.commit()
             .addOnSuccessListener {
                 _isLoading.value = false

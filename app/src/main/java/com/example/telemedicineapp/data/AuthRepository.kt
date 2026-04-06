@@ -83,6 +83,7 @@ class AuthRepository @Inject constructor() {
         pass: String,
         specialty: String,
         hospitalName: String,
+        address: String,
         certificateImage: String
     ): RegisterResult {
         return try {
@@ -103,7 +104,8 @@ class AuthRepository @Inject constructor() {
                 "doctorStatus" to "PENDING",
                 "specialty" to specialty,
                 "hospitalName" to hospitalName,
-                "imageUrl" to certificateImage, // <-- Đưa vào đây để hiển thị lên UI Admin
+                "address" to address,
+                "imageUrl" to certificateImage,
                 "certificateUrl" to certificateImage
             )
 
