@@ -195,7 +195,7 @@ fun BookingScreen(
 
             if (showQRDialog) {
                 PaymentQRDialog(
-                    amount = "150000",
+                    amount = "21329",
                     appointmentId = "MED-${System.currentTimeMillis() % 10000}",
                     onConfirm = {
                         showQRDialog = false
