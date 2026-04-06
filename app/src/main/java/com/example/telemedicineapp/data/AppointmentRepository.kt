@@ -1,5 +1,6 @@
 package com.example.telemedicineapp.data
 
+import android.util.Log
 import com.example.telemedicineapp.model.Appointment
 import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.tasks.await
@@ -10,6 +11,7 @@ import javax.inject.Singleton
 class AppointmentRepository @Inject constructor() {
     private val db = FirebaseFirestore.getInstance()
 
+    // Hàm tạo lịch hẹn cơ bản (Không kiểm tra)
     suspend fun createAppointment(appointment: Appointment): Boolean {
         return try {
             val docRef = db.collection("Appointments").document()
@@ -22,29 +24,40 @@ class AppointmentRepository @Inject constructor() {
             false
         }
     }
-    suspend fun createAppointmentWithCheck(appointment: Appointment): Result<Boolean> {
+
+    // Hàm tạo lịch hẹn CÓ KIỂM TRA CHỐNG TRÙNG LỊCH (Chuẩn Mobile)
+    suspend fun createAppointmentWithCheck(appointment: Appointment): Result<String> {
         return try {
-            val db = FirebaseFirestore.getInstance()
-            val appointmentRef = db.collection("Appointments").document()
+            // BƯỚC 1: Thực hiện lệnh Read (Query) để quét toàn bộ lịch của Bác sĩ này tại thời điểm đó
+            val checkSnapshot = db.collection("Appointments")
+                .whereEqualTo("doctorId", appointment.doctorId)
+                .whereEqualTo("dateTimeUtc", appointment.dateTimeUtc)
+                .whereIn("status", listOf("PENDING", "PAID")) // Chỉ quét những trạng thái đang "giữ chỗ"
+                .get()
+                .await()
 
-            // Sử dụng Transaction để chống trùng lịch
-            db.runTransaction { transaction ->
-                // 1. Tìm các cuộc hẹn cùng bác sĩ, cùng thời điểm, và không bị hủy
-                val query = db.collection("Appointments")
-                    .whereEqualTo("doctorId", appointment.doctorId)
-                    .whereEqualTo("dateTimeUtc", appointment.dateTimeUtc)
-                    .whereNotEqualTo("status", "CANCELLED")
+            // BƯỚC 2: Kiểm tra kết quả
+            if (!checkSnapshot.isEmpty) {
+                // Nếu danh sách không rỗng -> Có người đã đặt -> Trả về lỗi
+                Log.w("AppointmentRepo", "Phát hiện trùng lịch!")
+                return Result.failure(Exception("Rất tiếc, khung giờ này vừa có người đặt. Vui lòng chọn khung giờ khác."))
+            }
 
-                // Lưu ý: get() trong transaction phải dùng trực tiếp từ query snapshot
-                // Nhưng vì Firestore Transaction trên Mobile bị hạn chế với Query,
-                // Ta nên thực hiện kiểm tra này ở cấp độ Logic hoặc Cloud Functions.
+            // BƯỚC 3: Nếu an toàn (rỗng), tiến hành khởi tạo Document và lưu dữ liệu
+            val docRef = db.collection("Appointments").document()
 
-                // GIẢI PHÁP CHO MOBILE:
-                // Nếu bạn muốn làm thuần trên Mobile, hãy thực hiện một lệnh Read trước khi Write
-            }.await()
+            // Gắn cái ID thực tế của Firebase vào Object trước khi lưu
+            val newAppointment = appointment.copy(id = docRef.id)
 
-            Result.success(true)
+            docRef.set(newAppointment).await()
+
+            Log.d("AppointmentRepo", "Tạo lịch hẹn thành công: ${docRef.id}")
+
+            // Trả về ID của lịch hẹn vừa tạo để ViewModel mang đi xử lý tiếp (thanh toán, v.v.)
+            Result.success(docRef.id)
+
         } catch (e: Exception) {
+            Log.e("AppointmentRepo", "Lỗi tạo lịch hẹn: ${e.message}")
             Result.failure(e)
         }
     }

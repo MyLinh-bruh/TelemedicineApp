@@ -1,6 +1,7 @@
 package com.example.telemedicineapp.presentation.screen.ui.screens
 
 import android.net.Uri
+
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.*
@@ -19,6 +20,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -27,6 +29,42 @@ import androidx.navigation.NavController
 import coil.compose.AsyncImage
 import com.example.telemedicineapp.model.User
 import com.example.telemedicineapp.presentation.screen.auth.ProfileViewModel
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.util.Base64
+import java.io.ByteArrayOutputStream
+
+fun uriToBase64(context: android.content.Context, uri: Uri): String? {
+    return try {
+        val inputStream = context.contentResolver.openInputStream(uri)
+        val bitmap = BitmapFactory.decodeStream(inputStream)
+        val outputStream = ByteArrayOutputStream()
+        // Nén 50% để không quá nặng database
+        bitmap.compress(Bitmap.CompressFormat.JPEG, 50, outputStream)
+        val byteArray = outputStream.toByteArray()
+        Base64.encodeToString(byteArray, Base64.DEFAULT)
+    } catch (e: Exception) {
+        null
+    }
+}
+// Hàm hỗ trợ hiển thị ảnh từ chuỗi Base64 hoặc URL thường
+@Composable
+fun rememberProfileImage(imageUrl: String): Any {
+    return remember(imageUrl) {
+        if (imageUrl.isEmpty()) {
+            "https://cdn-icons-png.flaticon.com/512/149/149071.png"
+        } else if (imageUrl.startsWith("http")) {
+            imageUrl
+        } else {
+            // Nếu là chuỗi Base64, giải mã thành mảng byte để hiển thị
+            try {
+                Base64.decode(imageUrl, Base64.DEFAULT)
+            } catch (e: Exception) {
+                "https://cdn-icons-png.flaticon.com/512/149/149071.png"
+            }
+        }
+    }
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -51,13 +89,12 @@ fun PatientProfileScreen(navController: NavController, viewModel: ProfileViewMod
                 colors = TopAppBarDefaults.centerAlignedTopAppBarColors(containerColor = Color.Transparent)
             )
         },
-        containerColor = Color(0xFFF8FAFC) // Nền xám cực nhẹ tạo cảm giác sạch sẽ
+        containerColor = Color(0xFFF8FAFC)
     ) { padding ->
         Box(Modifier.padding(padding).fillMaxSize()) {
             if (viewModel.isLoading) {
                 CircularProgressIndicator(Modifier.align(Alignment.Center))
             } else if (!hasInfo && !isEditing) {
-                // GIAO DIỆN TRỐNG HIỆN ĐẠI
                 Column(
                     Modifier.fillMaxSize().padding(32.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
@@ -98,21 +135,24 @@ fun PatientProfileScreen(navController: NavController, viewModel: ProfileViewMod
 
 @Composable
 fun ProfileForm(user: User, viewModel: ProfileViewModel, onSave: () -> Unit) {
+    val context = LocalContext.current
     var name by remember { mutableStateOf(user.name) }
     var phone by remember { mutableStateOf(user.phone) }
     var address by remember { mutableStateOf(user.address) }
     var gender by remember { mutableStateOf(user.gender) }
     var bloodType by remember { mutableStateOf(user.bloodType) }
     var medicalHistory by remember { mutableStateOf(user.medicalHistory) }
-    var imageUri by remember { mutableStateOf<Uri?>(null) }
-    val launcher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { imageUri = it }
+
+    // imageUri tạm thời để hiển thị khi người dùng vừa chọn ảnh xong
+    var tempImageUri by remember { mutableStateOf<Uri?>(null) }
+    val launcher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { tempImageUri = it }
 
     Column(Modifier.fillMaxSize().padding(20.dp).verticalScroll(rememberScrollState())) {
-        // AVATAR PICKER HIỆN ĐẠI
         Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
             Box {
                 AsyncImage(
-                    model = imageUri ?: user.imageUrl.ifEmpty { "https://cdn-icons-png.flaticon.com/512/149/149071.png" },
+                    // Ưu tiên hiển thị Uri vừa chọn, nếu không có thì hiển thị dữ liệu từ Database (Base64/Url)
+                    model = tempImageUri ?: rememberProfileImage(user.imageUrl),
                     contentDescription = null,
                     modifier = Modifier
                         .size(130.dp)
@@ -135,7 +175,6 @@ fun ProfileForm(user: User, viewModel: ProfileViewModel, onSave: () -> Unit) {
 
         Spacer(Modifier.height(32.dp))
 
-        // FORM FIELDS CÓ ICON
         CustomTextField(value = name, onValueChange = { name = it }, label = "Họ tên *", icon = Icons.Outlined.Person)
         CustomTextField(value = phone, onValueChange = { phone = it }, label = "Số điện thoại *", icon = Icons.Outlined.Phone)
         CustomTextField(value = address, onValueChange = { address = it }, label = "Địa chỉ *", icon = Icons.Outlined.LocationOn)
@@ -146,13 +185,25 @@ fun ProfileForm(user: User, viewModel: ProfileViewModel, onSave: () -> Unit) {
         Spacer(Modifier.height(32.dp))
         Button(
             onClick = {
-                val updated = user.copy(name=name, phone=phone, address=address, gender=gender, bloodType=bloodType, medicalHistory=medicalHistory)
-                viewModel.saveProfile(updated, imageUri) { onSave() }
+                // Gọi thẳng hàm save, việc biến ảnh thành chuỗi đã có Repository lo
+                viewModel.saveProfile(
+                    user.copy(
+                        name = name,
+                        phone = phone,
+                        address = address,
+                        gender = gender,
+                        bloodType = bloodType,
+                        medicalHistory = medicalHistory
+                    ),
+                    tempImageUri // Truyền Uri tạm vào đây
+                ) {
+                    onSave() // Callback khi thành công
+                }
+
             },
             modifier = Modifier.fillMaxWidth().height(56.dp),
             shape = RoundedCornerShape(16.dp),
-            enabled = name.isNotBlank() && phone.isNotBlank() && !viewModel.isSaving,
-            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+            enabled = name.isNotBlank() && phone.isNotBlank() && !viewModel.isSaving
         ) {
             if (viewModel.isSaving) {
                 CircularProgressIndicator(color = Color.White, modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
@@ -167,7 +218,6 @@ fun ProfileForm(user: User, viewModel: ProfileViewModel, onSave: () -> Unit) {
 @Composable
 fun ProfileDetail(user: User, onEdit: () -> Unit) {
     Column(Modifier.fillMaxSize().padding(20.dp)) {
-        // CARD HEADER SANG TRỌNG
         Card(
             shape = RoundedCornerShape(24.dp),
             modifier = Modifier.fillMaxWidth(),
@@ -179,7 +229,7 @@ fun ProfileDetail(user: User, onEdit: () -> Unit) {
             ).padding(24.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     AsyncImage(
-                        model = user.imageUrl,
+                        model = rememberProfileImage(user.imageUrl), // Gọi hàm giải mã Base64
                         contentDescription = null,
                         modifier = Modifier.size(85.dp).clip(CircleShape).border(3.dp, Color.White.copy(alpha = 0.5f), CircleShape),
                         contentScale = ContentScale.Crop
@@ -202,7 +252,6 @@ fun ProfileDetail(user: User, onEdit: () -> Unit) {
 
         Spacer(Modifier.height(24.dp))
 
-        // DANH SÁCH THÔNG TIN CHI TIẾT
         Card(
             shape = RoundedCornerShape(24.dp),
             modifier = Modifier.fillMaxWidth().weight(1f),
@@ -223,8 +272,7 @@ fun ProfileDetail(user: User, onEdit: () -> Unit) {
         Button(
             onClick = onEdit,
             modifier = Modifier.fillMaxWidth().height(56.dp),
-            shape = RoundedCornerShape(16.dp),
-            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+            shape = RoundedCornerShape(16.dp)
         ) {
             Icon(Icons.Default.Edit, contentDescription = null)
             Spacer(Modifier.width(8.dp))

@@ -18,6 +18,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.DateRange
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -34,6 +35,7 @@ import com.example.telemedicineapp.model.Appointment
 import com.example.telemedicineapp.model.User
 import com.example.telemedicineapp.presentation.screen.appointment.AppointmentViewModel
 import com.example.telemedicineapp.presentation.screen.appointment.BookingState
+import com.example.telemedicineapp.presentation.screen.auth.ProfileViewModel
 import com.example.telemedicineapp.ui.components.PaymentQRDialog
 import com.example.telemedicineapp.utils.DateItem
 import com.example.telemedicineapp.utils.TimeUtils
@@ -41,12 +43,22 @@ import com.example.telemedicineapp.utils.TimeUtils
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun BookingScreen(
-    patient: User, 
     doctor: User,
     onBack: () -> Unit,
-    appointmentViewModel: AppointmentViewModel = hiltViewModel()
+    onNavigateToProfile: () -> Unit,
+    appointmentViewModel: AppointmentViewModel = hiltViewModel(),
+    profileViewModel: ProfileViewModel = hiltViewModel()
 ) {
     val context = LocalContext.current
+
+    // Tự động tải thông tin bệnh nhân để kiểm tra độ hoàn thiện
+    LaunchedEffect(Unit) {
+        profileViewModel.loadProfile()
+    }
+    val patient = profileViewModel.userState
+
+    // Biến xác định bệnh nhân có thiếu thông tin không
+    val isProfileIncomplete = patient != null && (patient.name.isBlank() || patient.phone.isBlank() || patient.address.isBlank())
 
     val bookingState by appointmentViewModel.bookingState.collectAsState()
     val schedule by appointmentViewModel.doctorSchedule.collectAsState()
@@ -81,6 +93,46 @@ fun BookingScreen(
         }
     }
 
+    // Hiển thị vòng xoay nếu dữ liệu bệnh nhân đang được lấy về
+    if (profileViewModel.isLoading) {
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            CircularProgressIndicator(color = Color(0xFF2563EB))
+        }
+        return
+    }
+
+    if (patient == null) return
+
+    // DIALOG CẢNH BÁO BẮT BUỘC ĐIỀN THÔNG TIN
+    if (isProfileIncomplete) {
+        AlertDialog(
+            onDismissRequest = { onBack() },
+            title = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.Warning, contentDescription = null, tint = Color(0xFFF59E0B))
+                    Spacer(Modifier.width(8.dp))
+                    Text("Thiếu thông tin", fontWeight = FontWeight.Bold)
+                }
+            },
+            text = { Text("Bạn cần cập nhật đầy đủ Họ tên, Số điện thoại và Địa chỉ trong Hồ sơ cá nhân trước khi tiến hành đặt lịch khám.") },
+            confirmButton = {
+                Button(
+                    onClick = onNavigateToProfile,
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2563EB))
+                ) {
+                    Text("Cập nhật ngay", fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = onBack) {
+                    Text("Quay lại", color = Color.Gray)
+                }
+            },
+            shape = RoundedCornerShape(16.dp),
+            containerColor = Color.White
+        )
+    }
+
     if (showPaymentWebView) {
         PaymentWebViewContent(
             url = "https://buy.stripe.com/test_8x2aEQ7K566kaQ7gLs3sI00",
@@ -109,7 +161,6 @@ fun BookingScreen(
             }
         ) { paddingValues ->
 
-            // Dialog Đặt lịch thành công
             if (showSuccessDialog) {
                 AlertDialog(
                     onDismissRequest = { },
@@ -143,7 +194,6 @@ fun BookingScreen(
                 )
             }
 
-            // Dialog Quét mã QR
             if (showQRDialog) {
                 PaymentQRDialog(
                     amount = "150000",
@@ -163,14 +213,13 @@ fun BookingScreen(
                 )
             }
 
-            // Dialog Lỗi trùng lịch (Conflict)
             if (showConflictDialog) {
                 AlertDialog(
                     onDismissRequest = { showConflictDialog = false },
                     title = { Text("Trùng lịch hẹn", fontWeight = FontWeight.Bold) },
                     text = { Text("Rất tiếc, khung giờ này vừa có người đặt. Vui lòng chọn khung giờ khác.") },
                     confirmButton = {
-                        TextButton(onClick = { 
+                        TextButton(onClick = {
                             showConflictDialog = false
                             appointmentViewModel.resetState()
                             appointmentViewModel.getSchedulesAndAppointments(doctor.id, selectedDate.fullDate)
@@ -188,49 +237,46 @@ fun BookingScreen(
             ) {
                 DoctorSimpleInfo(doctor)
 
-                // Chọn ngày khám
                 Column(modifier = Modifier.padding(16.dp)) {
                     Text("Ngày khám *", fontWeight = FontWeight.Bold)
                     Spacer(modifier = Modifier.height(8.dp))
                     LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         items(availableDates) { dateItem ->
                             DateSelectorItem(
-                                item = dateItem, 
-                                isSelected = selectedDate == dateItem, 
-                                onClick = { 
+                                item = dateItem,
+                                isSelected = selectedDate == dateItem,
+                                onClick = {
                                     selectedDate = dateItem
-                                    selectedTimeSlot = null 
+                                    selectedTimeSlot = null
                                 }
                             )
                         }
                     }
                 }
 
-                // Chọn giờ khám
                 Column(modifier = Modifier.padding(horizontal = 16.dp)) {
                     Text("Giờ khám *", fontWeight = FontWeight.Bold)
                     Spacer(modifier = Modifier.height(12.dp))
-                    
+
                     Text("Buổi sáng", fontWeight = FontWeight.SemiBold, color = Color.Gray, fontSize = 14.sp)
                     TimeSlotGrid(
-                        slots = schedule?.morningSlots ?: emptyList(), 
-                        selectedSlot = selectedTimeSlot, 
-                        bookedSlots = bookedSlots, 
+                        slots = schedule?.morningSlots ?: emptyList(),
+                        selectedSlot = selectedTimeSlot,
+                        bookedSlots = bookedSlots,
                         busySlots = schedule?.busySlots ?: emptyList()
                     ) { selectedTimeSlot = it }
-                    
+
                     Spacer(modifier = Modifier.height(16.dp))
-                    
+
                     Text("Buổi chiều", fontWeight = FontWeight.SemiBold, color = Color.Gray, fontSize = 14.sp)
                     TimeSlotGrid(
-                        slots = schedule?.afternoonSlots ?: emptyList(), 
-                        selectedSlot = selectedTimeSlot, 
-                        bookedSlots = bookedSlots, 
+                        slots = schedule?.afternoonSlots ?: emptyList(),
+                        selectedSlot = selectedTimeSlot,
+                        bookedSlots = bookedSlots,
                         busySlots = schedule?.busySlots ?: emptyList()
                     ) { selectedTimeSlot = it }
                 }
 
-                // Chọn phương thức thanh toán
                 Column(modifier = Modifier.padding(16.dp)) {
                     Text("Phương thức thanh toán *", fontWeight = FontWeight.Bold, fontSize = 16.sp)
                     Spacer(modifier = Modifier.height(12.dp))
@@ -247,7 +293,6 @@ fun BookingScreen(
                     )
                 }
 
-                // Lý do khám
                 Column(modifier = Modifier.padding(16.dp)) {
                     OutlinedTextField(
                         value = reason,
@@ -262,14 +307,14 @@ fun BookingScreen(
 
                 Button(
                     onClick = {
-                        if (selectedTimeSlot != null) {
+                        if (selectedTimeSlot != null && !isProfileIncomplete) {
                             val startTime = selectedTimeSlot!!.split(" - ")[0]
                             val utcDateTime = TimeUtils.convertLocalToUtcString(selectedDate.fullDate, startTime)
                             val displayName = if (patient.name.isBlank()) "Bệnh nhân ẩn danh" else patient.name
 
                             if (utcDateTime != null) {
                                 val newAppointment = Appointment(
-                                    patientId = patient.id,
+                                    patientId = patient.email,
                                     patientName = displayName,
                                     doctorId = doctor.id,
                                     doctorName = doctor.name,
@@ -283,8 +328,8 @@ fun BookingScreen(
                     },
                     modifier = Modifier.fillMaxWidth().padding(16.dp).height(54.dp),
                     shape = RoundedCornerShape(12.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = if (selectedTimeSlot != null) Color(0xFF2563EB) else Color.LightGray),
-                    enabled = selectedTimeSlot != null && bookingState !is BookingState.Loading
+                    colors = ButtonDefaults.buttonColors(containerColor = if (selectedTimeSlot != null && !isProfileIncomplete) Color(0xFF2563EB) else Color.LightGray),
+                    enabled = selectedTimeSlot != null && bookingState !is BookingState.Loading && !isProfileIncomplete
                 ) {
                     Text("Xác nhận & Thanh toán", fontWeight = FontWeight.Bold)
                 }
@@ -292,8 +337,6 @@ fun BookingScreen(
         }
     }
 }
-
-// --- CÁC COMPONENT PHỤ TRỢ ---
 
 @Composable
 fun PaymentMethodOption(title: String, isSelected: Boolean, onClick: () -> Unit) {
@@ -323,11 +366,11 @@ fun TimeSlotGrid(slots: List<String>, selectedSlot: String?, bookedSlots: List<S
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 rowSlots.forEach { slot ->
                     TimeSlotItem(
-                        slot = slot, 
-                        isSelected = selectedSlot == slot, 
-                        isBooked = bookedSlots.contains(slot), 
-                        isBusy = busySlots.contains(slot), 
-                        modifier = Modifier.weight(1f), 
+                        slot = slot,
+                        isSelected = selectedSlot == slot,
+                        isBooked = bookedSlots.contains(slot),
+                        isBusy = busySlots.contains(slot),
+                        modifier = Modifier.weight(1f),
                         onClick = { onSlotSelected(slot) }
                     )
                 }
