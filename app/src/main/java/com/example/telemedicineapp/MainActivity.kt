@@ -91,7 +91,7 @@ fun AppNavigation(
 
     NavHost(navController = navController, startDestination = startDestination) {
 
-        // 1. MÀN HÌNH ĐĂNG NHẬP (ĐÃ FIX: Truyền authViewModel)
+        // 1. MÀN HÌNH ĐĂNG NHẬP
         composable("login_screen") {
             LoginScreen(
                 viewModel = authViewModel,
@@ -202,20 +202,19 @@ fun AppNavigation(
             }
         }
 
-        // 9. MÀN HÌNH ĐẶT LỊCH HẸN
+        // 9. MÀN HÌNH ĐẶT LỊCH HẸN (Đã cập nhật để bỏ parameter patient, thêm luồng điều hướng)
         composable(
             route = "booking_screen/{doctorId}",
             arguments = listOf(navArgument("doctorId") { type = NavType.StringType })
         ) { backStackEntry ->
             val doctorId = backStackEntry.arguments?.getString("doctorId") ?: ""
             val doctor = approvedDoctorsForPatient.find { it.id == doctorId } ?: allDoctorsForAdmin.find { it.id == doctorId }
-            val user = currentUser
 
-            if (doctor != null && user != null) {
+            if (doctor != null) {
                 BookingScreen(
                     doctor = doctor,
-                    patient = user,
-                    onBack = { navController.popBackStack() }
+                    onBack = { navController.popBackStack() },
+                    onNavigateToProfile = { navController.navigate("patient_profile") }
                 )
             } else {
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
