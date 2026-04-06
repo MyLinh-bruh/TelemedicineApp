@@ -1,5 +1,6 @@
 package com.example.telemedicineapp.ui.screens
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -19,6 +20,8 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.example.telemedicineapp.model.Appointment
 import com.example.telemedicineapp.presentation.screen.appointment.AppointmentHistoryViewModel
+import com.example.telemedicineapp.ui.components.PaymentQRDialog
+import kotlinx.coroutines.delay
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -36,7 +39,13 @@ fun AppointmentHistoryScreen(
     var isAscending by remember { mutableStateOf(true) }
     var appointmentToCancel by remember { mutableStateOf<Appointment?>(null) }
 
-    // LOGIC LỌC, TÌM KIẾM VÀ SẮP XẾP CHUẨN
+    // --- STATES CHO THANH TOÁN TIẾP TỤC ---
+    var appointmentToPay by remember { mutableStateOf<Appointment?>(null) }
+    var showPaymentChoiceDialog by remember { mutableStateOf(false) }
+    var selectedPaymentMethod by remember { mutableStateOf("STRIPE") }
+    var showPaymentWebView by remember { mutableStateOf(false) }
+    var showQRDialog by remember { mutableStateOf(false) }
+
     val filteredList = appointments.filter { appt ->
         val matchTab = when (selectedTab) {
             0 -> appt.status == "PENDING" || appt.status == "PAID"
@@ -45,7 +54,6 @@ fun AppointmentHistoryScreen(
             else -> true
         }
 
-        // Fix lỗi tìm kiếm: Bỏ khoảng trắng 2 đầu và kiểm tra chuỗi rỗng
         val query = searchQuery.trim()
         val matchSearch = if (query.isEmpty()) true else {
             appt.doctorName.contains(query, ignoreCase = true) ||
@@ -61,19 +69,87 @@ fun AppointmentHistoryScreen(
         }
     }
 
+    if (showPaymentWebView && appointmentToPay != null) {
+        PaymentWebViewContent(
+            url = "https://buy.stripe.com/test_8x2aEQ7K566kaQ7gLs3sI00",
+            onSuccess = {
+                showPaymentWebView = false
+                viewModel.confirmPayment(appointmentToPay!!.id)
+                appointmentToPay = null
+            },
+            onCancel = {
+                showPaymentWebView = false
+            }
+        )
+        return
+    }
+
+    if (showQRDialog && appointmentToPay != null) {
+        PaymentQRDialog(
+            amount = "150000",
+            appointmentId = appointmentToPay!!.id,
+            onConfirm = {
+                showQRDialog = false
+                viewModel.confirmPayment(appointmentToPay!!.id)
+                appointmentToPay = null
+            },
+            onDismiss = { showQRDialog = false }
+        )
+    }
+
+    if (showPaymentChoiceDialog && appointmentToPay != null) {
+        AlertDialog(
+            onDismissRequest = { showPaymentChoiceDialog = false },
+            title = { Text("Chọn phương thức", fontWeight = FontWeight.Bold) },
+            text = {
+                Column {
+                    PaymentMethodOption("Thẻ Quốc tế (Stripe)", selectedPaymentMethod == "STRIPE") { selectedPaymentMethod = "STRIPE" }
+                    Spacer(modifier = Modifier.height(8.dp))
+                    PaymentMethodOption("Quét mã QR", selectedPaymentMethod == "QR") { selectedPaymentMethod = "QR" }
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showPaymentChoiceDialog = false
+                        if (selectedPaymentMethod == "STRIPE") showPaymentWebView = true else showQRDialog = true
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2563EB))
+                ) { Text("Thanh toán", fontWeight = FontWeight.Bold) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showPaymentChoiceDialog = false }) { Text("Hủy") }
+            },
+            shape = RoundedCornerShape(16.dp),
+            containerColor = Color.White
+        )
+    }
+
+    // 🌟 XỬ LÝ DIALOG HỦY LỊCH / HỦY THANH TOÁN
     if (appointmentToCancel != null) {
+        val isPending = appointmentToCancel?.status == "PENDING"
         AlertDialog(
             onDismissRequest = { appointmentToCancel = null },
-            title = { Text("Xác nhận hủy lịch", fontWeight = FontWeight.Bold) },
-            text = { Text("Bạn có chắc chắn muốn hủy lịch hẹn với ${appointmentToCancel?.doctorName} không? Hành động này không thể hoàn tác.") },
+            title = { Text(if (isPending) "Xác nhận hủy thanh toán" else "Xác nhận hủy lịch", fontWeight = FontWeight.Bold) },
+            text = {
+                Text(
+                    if (isPending) "Bạn có chắc chắn muốn hủy? Lịch hẹn chờ thanh toán này sẽ bị xóa hoàn toàn khỏi hệ thống."
+                    else "Bạn có chắc chắn muốn hủy lịch hẹn với ${appointmentToCancel?.doctorName} không? Hành động này không thể hoàn tác."
+                )
+            },
             confirmButton = {
                 TextButton(
                     onClick = {
-                        viewModel.cancelAppointment(appointmentToCancel!!.id)
+                        // 🌟 Nếu PENDING (chờ thanh toán) -> Xóa thẳng. Nếu PAID (đã thanh toán) -> Đổi status thành CANCELLED
+                        if (isPending) {
+                            viewModel.deleteAppointment(appointmentToCancel!!.id)
+                        } else {
+                            viewModel.cancelAppointment(appointmentToCancel!!.id)
+                        }
                         appointmentToCancel = null
                     }
                 ) {
-                    Text("Đồng ý hủy", color = Color.Red, fontWeight = FontWeight.Bold)
+                    Text(if (isPending) "Đồng ý xóa" else "Đồng ý hủy", color = Color.Red, fontWeight = FontWeight.Bold)
                 }
             },
             dismissButton = {
@@ -185,7 +261,15 @@ fun AppointmentHistoryScreen(
                         AppointmentCard(
                             appointment = appt,
                             formattedTime = viewModel.formatDateTime(appt.dateTimeUtc),
-                            onCancelClick = { appointmentToCancel = appt }
+                            onCancelClick = { appointmentToCancel = appt },
+                            onPayClick = {
+                                appointmentToPay = appt
+                                showPaymentChoiceDialog = true
+                            },
+                            onTimeout = {
+                                // 🌟 NẾU HẾT 10 PHÚT CHỜ THANH TOÁN -> XÓA LUÔN LỊCH HẸN ĐÓ
+                                viewModel.deleteAppointment(appt.id)
+                            }
                         )
                     }
                 }
@@ -198,7 +282,9 @@ fun AppointmentHistoryScreen(
 fun AppointmentCard(
     appointment: Appointment,
     formattedTime: String,
-    onCancelClick: () -> Unit
+    onCancelClick: () -> Unit,
+    onPayClick: () -> Unit,
+    onTimeout: () -> Unit
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -257,8 +343,16 @@ fun AppointmentCard(
                 }
             }
 
-            if (appointment.status == "PENDING" || appointment.status == "PAID") {
-                Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(16.dp))
+
+            if (appointment.status == "PENDING") {
+                PendingPaymentTimer(
+                    createdAt = appointment.createdAt,
+                    onTimeout = onTimeout,
+                    onPayClick = onPayClick,
+                    onCancelClick = onCancelClick
+                )
+            } else if (appointment.status == "PAID") {
                 Button(
                     onClick = onCancelClick,
                     modifier = Modifier
@@ -275,6 +369,53 @@ fun AppointmentCard(
                 }
             }
         }
+    }
+}
+
+@Composable
+fun PendingPaymentTimer(createdAt: Long, onTimeout: () -> Unit, onPayClick: () -> Unit, onCancelClick: () -> Unit) {
+    var timeLeft by remember(createdAt) {
+        mutableLongStateOf((10 * 60) - ((System.currentTimeMillis() - createdAt) / 1000))
+    }
+
+    LaunchedEffect(timeLeft) {
+        if (timeLeft > 0) {
+            delay(1000L)
+            timeLeft = (10 * 60) - ((System.currentTimeMillis() - createdAt) / 1000)
+        } else {
+            onTimeout()
+        }
+    }
+
+    if (timeLeft > 0) {
+        val mins = timeLeft / 60
+        val secs = timeLeft % 60
+        val timeString = String.format("%02d:%02d", mins, secs)
+
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            OutlinedButton(
+                onClick = onCancelClick,
+                modifier = Modifier.weight(1.2f).height(45.dp),
+                shape = RoundedCornerShape(12.dp),
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.Red),
+                border = BorderStroke(1.dp, Color.Red),
+                contentPadding = PaddingValues(0.dp)
+            ) {
+                Text("Hủy thanh toán", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+            }
+
+            Button(
+                onClick = onPayClick,
+                modifier = Modifier.weight(1.8f).height(45.dp),
+                shape = RoundedCornerShape(12.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFF59E0B)),
+                contentPadding = PaddingValues(0.dp)
+            ) {
+                Text("Thanh toán ($timeString)", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+            }
+        }
+    } else {
+        Text("Đang hủy giao dịch...", color = Color.Red, fontSize = 14.sp, fontWeight = FontWeight.Bold)
     }
 }
 
