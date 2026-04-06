@@ -32,28 +32,28 @@ fun AppointmentHistoryScreen(
     var selectedTab by remember { mutableIntStateOf(0) }
     val tabs = listOf("Sắp tới", "Đã khám", "Đã hủy")
 
-    // BIẾN STATE MỚI CHO TÌM KIẾM, LỌC VÀ HỦY
     var searchQuery by remember { mutableStateOf("") }
-    var isAscending by remember { mutableStateOf(true) } // true = Gần nhất lên đầu, false = Xa nhất lên đầu
+    var isAscending by remember { mutableStateOf(true) }
     var appointmentToCancel by remember { mutableStateOf<Appointment?>(null) }
 
-    // Logic Lọc, Tìm kiếm và Sắp xếp
+    // LOGIC LỌC, TÌM KIẾM VÀ SẮP XẾP CHUẨN
     val filteredList = appointments.filter { appt ->
-        // Lọc theo Tab
         val matchTab = when (selectedTab) {
-            0 -> appt.status == "PENDING" || appt.status == "PAID" // Sắp tới
-            1 -> appt.status == "COMPLETED"                        // Đã khám xong
-            2 -> appt.status == "CANCELLED"                        // Bị hủy
+            0 -> appt.status == "PENDING" || appt.status == "PAID"
+            1 -> appt.status == "COMPLETED"
+            2 -> appt.status == "CANCELLED"
             else -> true
         }
 
-        // Lọc theo từ khóa tìm kiếm (Tên bác sĩ hoặc triệu chứng)
-        val matchSearch = appt.doctorName.contains(searchQuery, ignoreCase = true) ||
-                appt.reason.contains(searchQuery, ignoreCase = true)
+        // Fix lỗi tìm kiếm: Bỏ khoảng trắng 2 đầu và kiểm tra chuỗi rỗng
+        val query = searchQuery.trim()
+        val matchSearch = if (query.isEmpty()) true else {
+            appt.doctorName.contains(query, ignoreCase = true) ||
+                    appt.reason.contains(query, ignoreCase = true)
+        }
 
         matchTab && matchSearch
     }.let { list ->
-        // Sắp xếp mặc định: Ngày gần nhất lên đầu
         if (isAscending) {
             list.sortedBy { it.dateTimeUtc }
         } else {
@@ -61,7 +61,6 @@ fun AppointmentHistoryScreen(
         }
     }
 
-    // DIALOG XÁC NHẬN HỦY LỊCH
     if (appointmentToCancel != null) {
         AlertDialog(
             onDismissRequest = { appointmentToCancel = null },
@@ -101,7 +100,6 @@ fun AppointmentHistoryScreen(
     ) { paddingValues ->
         Column(modifier = Modifier.padding(paddingValues)) {
 
-            // THANH TÌM KIẾM VÀ NÚT SẮP XẾP
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -135,7 +133,6 @@ fun AppointmentHistoryScreen(
 
                 Spacer(modifier = Modifier.width(8.dp))
 
-                // Nút chuyển đổi chiều sắp xếp
                 IconButton(
                     onClick = { isAscending = !isAscending },
                     modifier = Modifier
@@ -150,7 +147,6 @@ fun AppointmentHistoryScreen(
                 }
             }
 
-            // THANH TABS
             TabRow(
                 selectedTabIndex = selectedTab,
                 containerColor = Color.White,
@@ -171,7 +167,6 @@ fun AppointmentHistoryScreen(
                 }
             }
 
-            // HIỂN THỊ NỘI DUNG
             if (isLoading) {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     CircularProgressIndicator(color = Color(0xFF2563EB))
@@ -190,7 +185,7 @@ fun AppointmentHistoryScreen(
                         AppointmentCard(
                             appointment = appt,
                             formattedTime = viewModel.formatDateTime(appt.dateTimeUtc),
-                            onCancelClick = { appointmentToCancel = appt } // Mở dialog khi nhấn Hủy
+                            onCancelClick = { appointmentToCancel = appt }
                         )
                     }
                 }
@@ -217,15 +212,12 @@ fun AppointmentCard(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Thời gian
                 Text(
                     text = formattedTime,
                     fontWeight = FontWeight.Bold,
                     fontSize = 15.sp,
                     color = Color(0xFF1E293B)
                 )
-
-                // Status Badge
                 StatusBadge(status = appointment.status)
             }
 
@@ -265,7 +257,6 @@ fun AppointmentCard(
                 }
             }
 
-            // HIỂN THỊ NÚT HỦY NẾU LỊCH CHƯA DIỄN RA
             if (appointment.status == "PENDING" || appointment.status == "PAID") {
                 Spacer(modifier = Modifier.height(16.dp))
                 Button(
@@ -275,8 +266,8 @@ fun AppointmentCard(
                         .height(45.dp),
                     shape = RoundedCornerShape(12.dp),
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = Color(0xFFFEF2F2), // Nền đỏ siêu nhạt
-                        contentColor = Color(0xFFDC2626)    // Chữ đỏ đậm
+                        containerColor = Color(0xFFFEF2F2),
+                        contentColor = Color(0xFFDC2626)
                     ),
                     elevation = ButtonDefaults.buttonElevation(0.dp)
                 ) {
@@ -291,7 +282,7 @@ fun AppointmentCard(
 fun StatusBadge(status: String) {
     val (bgColor, textColor, text) = when (status) {
         "PAID" -> Triple(Color(0xFFD1FAE5), Color(0xFF059669), "ĐÃ THANH TOÁN")
-        "PENDING" -> Triple(Color(0xFFFEF3C7), Color(0xFFD97706), "CHỜ KHÁM")
+        "PENDING" -> Triple(Color(0xFFFEF3C7), Color(0xFFD97706), "CHỜ THANH TOÁN")
         "COMPLETED" -> Triple(Color(0xFFDBEAFE), Color(0xFF2563EB), "HOÀN THÀNH")
         "CANCELLED" -> Triple(Color(0xFFFEE2E2), Color(0xFFDC2626), "ĐÃ HỦY")
         else -> Triple(Color(0xFFF3F4F6), Color(0xFF4B5563), status)

@@ -3,6 +3,7 @@ package com.example.telemedicineapp.presentation.screen.appointment
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.telemedicineapp.core.TokenManager
 import com.example.telemedicineapp.data.AppointmentRepository
 import com.example.telemedicineapp.model.Appointment
 import com.example.telemedicineapp.model.DoctorSchedule
@@ -17,7 +18,8 @@ import javax.inject.Inject
 
 @HiltViewModel
 class AppointmentViewModel @Inject constructor(
-    private val appointmentRepository: AppointmentRepository
+    private val appointmentRepository: AppointmentRepository,
+    private val tokenManager: TokenManager // 👈 THÊM TOKEN MANAGER
 ) : ViewModel() {
 
     private val db = FirebaseFirestore.getInstance()
@@ -34,7 +36,7 @@ class AppointmentViewModel @Inject constructor(
     private val _bookedSlots = MutableStateFlow<List<String>>(emptyList())
     val bookedSlots: StateFlow<List<String>> = _bookedSlots
 
-    // Biến lưu trữ lịch hẹn đang xử lý (Dùng để Cập nhật hoặc Xóa nếu người dùng hủy thanh toán)
+    // Biến lưu trữ lịch hẹn đang xử lý
     private var currentPendingAppointmentId: String? = null
 
     /**
@@ -79,7 +81,6 @@ class AppointmentViewModel @Inject constructor(
                         )
                     }
                 }
-                // Sau khi lấy khung giờ rảnh, lấy tiếp các slot đã bị đặt
                 fetchBookedSlots(doctorId, date)
             } catch (e: Exception) {
                 Log.e("AppointmentVM", "Lỗi getSchedules: ${e.message}")
@@ -88,15 +89,11 @@ class AppointmentViewModel @Inject constructor(
         }
     }
 
-    /**
-     * Lấy danh sách các khung giờ đã có người đặt (PENDING hoặc PAID)
-     */
     private suspend fun fetchBookedSlots(doctorId: String, date: String) {
         try {
             val startOfDay = "${date}T00:00:00Z"
             val endOfDay = "${date}T23:59:59Z"
 
-            // Query theo doctorId (tránh lỗi thiếu index khi lọc nhiều trường trên Firebase)
             val snapshot = db.collection("Appointments")
                 .whereEqualTo("doctorId", doctorId)
                 .get()
@@ -106,7 +103,6 @@ class AppointmentViewModel @Inject constructor(
                 val utcTime = doc.getString("dateTimeUtc") ?: return@mapNotNull null
                 val status = doc.getString("status") ?: ""
 
-                // Lọc bằng code: đúng ngày và trạng thái hợp lệ
                 if (utcTime in startOfDay..endOfDay && (status == "PENDING" || status == "PAID")) {
                     TimeUtils.extractSlotFromUtc(utcTime)
                 } else null
@@ -125,7 +121,7 @@ class AppointmentViewModel @Inject constructor(
         viewModelScope.launch {
             _bookingState.value = BookingState.Loading
             try {
-                // 1. Kiểm tra Fresh Check (slot có bị ai nhanh tay đặt mất không)
+                // 1. Kiểm tra Fresh Check
                 val checkSnapshot = db.collection("Appointments")
                     .whereEqualTo("doctorId", appointment.doctorId)
                     .whereEqualTo("dateTimeUtc", appointment.dateTimeUtc)
@@ -137,16 +133,22 @@ class AppointmentViewModel @Inject constructor(
                     return@launch
                 }
 
-                // 2. Tạo ID mới và lưu lịch hẹn
+                // 2. Tạo ID mới
                 val newDocRef = db.collection("Appointments").document()
-                val appointmentWithId = appointment.copy(id = newDocRef.id)
-                
-                newDocRef.set(appointmentWithId).await()
-                
-                // 3. Lưu lại ID để xử lý thanh toán ở các bước sau
-                currentPendingAppointmentId = appointmentWithId.id
+
+                // 3. ÉP CẬP NHẬT patientId THÀNH EMAIL ĐANG ĐĂNG NHẬP (An toàn tuyệt đối)
+                val safeEmail = tokenManager.getEmail() ?: appointment.patientId
+                val appointmentWithIdAndEmail = appointment.copy(
+                    id = newDocRef.id,
+                    patientId = safeEmail // 👈 LUÔN LUÔN LƯU BẰNG EMAIL
+                )
+
+                newDocRef.set(appointmentWithIdAndEmail).await()
+
+                // 4. Lưu lại ID tạm thời
+                currentPendingAppointmentId = appointmentWithIdAndEmail.id
                 _bookingState.value = BookingState.Success
-                
+
             } catch (e: Exception) {
                 Log.e("AppointmentVM", "Lỗi bookAppointment: ${e.message}")
                 _bookingState.value = BookingState.Error(e.message ?: "Lỗi không xác định")
@@ -154,9 +156,6 @@ class AppointmentViewModel @Inject constructor(
         }
     }
 
-    /**
-     * Cập nhật trạng thái (ví dụ sang "PAID") sau khi thanh toán thành công
-     */
     fun confirmAppointmentStatus(newStatus: String) {
         val apptId = currentPendingAppointmentId ?: return
         viewModelScope.launch {
@@ -164,16 +163,13 @@ class AppointmentViewModel @Inject constructor(
                 db.collection("Appointments").document(apptId)
                     .update("status", newStatus).await()
                 Log.d("AppointmentVM", "Cập nhật status $newStatus cho: $apptId")
-                currentPendingAppointmentId = null // Xóa ID tạm sau khi xong
+                currentPendingAppointmentId = null
             } catch (e: Exception) {
                 Log.e("AppointmentVM", "Lỗi cập nhật trạng thái: ${e.message}")
             }
         }
     }
 
-    /**
-     * Xóa lịch hẹn tạm thời nếu người dùng hủy quá trình thanh toán/thoát ra
-     */
     fun cancelPendingAppointment() {
         val apptId = currentPendingAppointmentId ?: return
         viewModelScope.launch {
