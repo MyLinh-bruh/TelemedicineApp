@@ -39,7 +39,6 @@ fun MedicalRecordScreen(
     val record by viewModel.recordState.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
 
-    // Thêm CoroutineScope và Firestore để cập nhật Lịch hẹn
     val coroutineScope = rememberCoroutineScope()
     val db = FirebaseFirestore.getInstance()
 
@@ -62,12 +61,12 @@ fun MedicalRecordScreen(
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
         } else {
             record?.let { currentRecord ->
-                // States cho Form thông tin hành chính
+                // 🌟 States cho Form thông tin hành chính - Lấy từ data lên
                 var name by remember { mutableStateOf(currentRecord.patientName) }
-                var age by remember { mutableStateOf("") }
-                var cccd by remember { mutableStateOf("") }
-                var phone by remember { mutableStateOf("") }
-                var bhyt by remember { mutableStateOf("") }
+                var age by remember { mutableStateOf(currentRecord.age) }
+                var cccd by remember { mutableStateOf(currentRecord.identityCard) }
+                var phone by remember { mutableStateOf(currentRecord.phone) }
+                var bhyt by remember { mutableStateOf(currentRecord.healthInsurance) }
 
                 // States cho chỉ số cơ thể & bệnh lý
                 var height by remember { mutableStateOf(currentRecord.height) }
@@ -85,7 +84,6 @@ fun MedicalRecordScreen(
                 var diagnosis by remember { mutableStateOf(currentRecord.diagnosis) }
                 var prescription by remember { mutableStateOf(currentRecord.prescription) }
 
-                // Cờ khóa nút khi đang lưu
                 var isSavingProgress by remember { mutableStateOf(false) }
 
                 Column(
@@ -103,6 +101,7 @@ fun MedicalRecordScreen(
                         Text("Cập nhật lần cuối: ${currentRecord.lastUpdated}", fontSize = 12.sp, color = Color.Gray)
                     }
 
+                    // Form thông tin hành chính
                     PatientInfoForm(
                         name = name, onNameChange = { if (!isReadOnly) name = it },
                         age = age, onAgeChange = { if (!isReadOnly) age = it },
@@ -145,8 +144,13 @@ fun MedicalRecordScreen(
                         Button(
                             onClick = {
                                 isSavingProgress = true
+                                // 🌟 Đóng gói tất cả thông tin hành chính và chuyên môn để lưu
                                 val updatedRecord = currentRecord.copy(
                                     patientName = name,
+                                    age = age,
+                                    identityCard = cccd,
+                                    phone = phone,
+                                    healthInsurance = bhyt,
                                     height = height, weight = weight, bloodType = bloodType,
                                     bloodPressure = bloodPressure, heartRate = heartRate, temperature = temperature,
                                     allergies = allergies, chronicDiseases = chronicDiseases, pastSurgeries = pastSurgeries,
@@ -154,27 +158,8 @@ fun MedicalRecordScreen(
                                 )
                                 viewModel.saveRecord(updatedRecord, doctorId) { success ->
                                     if (success) {
-                                        // 🌟 CẬP NHẬT TRẠNG THÁI LỊCH HẸN SANG "ĐÃ KHÁM"
-                                        coroutineScope.launch {
-                                            try {
-                                                val snapshot = db.collection("Appointments")
-                                                    .whereEqualTo("patientId", patientId)
-                                                    .whereEqualTo("doctorId", doctorId)
-                                                    .whereEqualTo("status", "PAID") // Tìm các lịch đã thanh toán đang chờ khám
-                                                    .get().await()
-
-                                                for (doc in snapshot.documents) {
-                                                    db.collection("Appointments").document(doc.id)
-                                                        .update("status", "COMPLETED").await()
-                                                }
-
-                                                Toast.makeText(context, "Đã lưu hồ sơ và hoàn thành lịch khám!", Toast.LENGTH_LONG).show()
-                                                onBack()
-                                            } catch (e: Exception) {
-                                                Toast.makeText(context, "Lỗi cập nhật lịch hẹn!", Toast.LENGTH_SHORT).show()
-                                                isSavingProgress = false
-                                            }
-                                        }
+                                        Toast.makeText(context, "Đã lưu hồ sơ bệnh án!", Toast.LENGTH_LONG).show()
+                                        onBack()
                                     } else {
                                         Toast.makeText(context, "Lỗi khi lưu hồ sơ!", Toast.LENGTH_SHORT).show()
                                         isSavingProgress = false
@@ -195,7 +180,6 @@ fun MedicalRecordScreen(
                             }
                         }
                     }
-
                     Spacer(modifier = Modifier.height(32.dp))
                 }
             }

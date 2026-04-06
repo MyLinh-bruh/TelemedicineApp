@@ -6,6 +6,12 @@ data class MedicalRecord(
     val doctorId: String = "",
     val patientName: String = "",
 
+    // 🌟 THÊM MỚI: Thông tin hành chính lưu trực tiếp vào bệnh án
+    val age: String = "",
+    val phone: String = "",
+    val identityCard: String = "",
+    val healthInsurance: String = "",
+
     // 1. Chỉ số cơ thể & Máu
     val dateOfBirth: String = "",
     val gender: String = "Khác", // Nam / Nữ / Khác

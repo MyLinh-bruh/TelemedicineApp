@@ -24,12 +24,12 @@ class MedicalRecordViewModel @Inject constructor() : ViewModel() {
     private val _isLoading = MutableStateFlow(false)
     val isLoading: StateFlow<Boolean> = _isLoading
 
-    // 🌟 Lấy hồ sơ (Nếu đã khám rồi thì hiện lại, chưa thì tạo mới)
+    // 🌟 Lấy hồ sơ: Nếu đã khám rồi thì hiện lại (kèm thông tin hành chính cũ), chưa thì tạo mới
     fun fetchRecord(patientId: String, patientName: String) {
         viewModelScope.launch {
             _isLoading.value = true
             try {
-                // Lấy bản ghi mới nhất của bệnh nhân này
+                // Lấy bản ghi mới nhất của bệnh nhân này từ Firestore
                 val snapshot = db.collection("MedicalRecords")
                     .whereEqualTo("patientId", patientId)
                     .get()
@@ -38,8 +38,10 @@ class MedicalRecordViewModel @Inject constructor() : ViewModel() {
                 if (!snapshot.isEmpty) {
                     val document = snapshot.documents[0]
                     val data = document.toObject(MedicalRecord::class.java)
+                    // Trả về dữ liệu cũ bao gồm cả age, phone, identityCard, healthInsurance
                     _recordState.value = data?.copy(id = document.id)
                 } else {
+                    // Nếu là lần đầu khám, chỉ mặc định tên, các trường hành chính khác để trống cho BS nhập [cite: 2]
                     _recordState.value = MedicalRecord(
                         patientId = patientId,
                         patientName = patientName
@@ -62,10 +64,10 @@ class MedicalRecordViewModel @Inject constructor() : ViewModel() {
                 // 1. Tạo ID nếu chưa có (cho hồ sơ mới)
                 val finalId = if (record.id.isEmpty()) collection.document().id else record.id
 
-                // 2. Định dạng thời gian gửi
+                // 2. Định dạng thời gian gửi theo giờ địa phương
                 val currentTime = SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.getDefault()).format(Date())
 
-                // 3. Chuẩn bị dữ liệu cuối cùng để gửi
+                // 3. Chuẩn bị dữ liệu cuối cùng để gửi (Bao gồm các trường hành chính mới)
                 val finalRecord = record.copy(
                     id = finalId,
                     doctorId = doctorId,
@@ -84,6 +86,7 @@ class MedicalRecordViewModel @Inject constructor() : ViewModel() {
 
                 for (doc in apptQuery.documents) {
                     val status = doc.getString("status")
+                    // Cập nhật các lịch đang ở trạng thái chờ hoặc đã thanh toán
                     if (status == "PENDING" || status == "PAID") {
                         doc.reference.update("status", "COMPLETED").await()
                     }

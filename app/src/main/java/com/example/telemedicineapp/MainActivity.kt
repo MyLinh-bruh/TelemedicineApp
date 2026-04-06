@@ -101,6 +101,7 @@ fun AppNavigation(
 
     NavHost(navController = navController, startDestination = startDestination) {
 
+        // --- AUTH SCREENS ---
         composable("login_screen") {
             LoginScreen(
                 viewModel = authViewModel,
@@ -145,6 +146,7 @@ fun AppNavigation(
             )
         }
 
+        // --- ADMIN SCREENS ---
         composable("admin_dashboard") {
             AdminHomeScreen(
                 allDoctors = allDoctorsForAdmin,
@@ -165,7 +167,7 @@ fun AppNavigation(
             )
         }
 
-        // 🌟 TRANG CHỦ BỆNH NHÂN
+        // --- PATIENT SCREENS ---
         composable("patient_home") {
             val user = currentUser
             val displayName = user?.name?.takeIf { it.isNotBlank() } ?: user?.email ?: "Khách"
@@ -194,7 +196,6 @@ fun AppNavigation(
             PatientProfileScreen(navController = navController)
         }
 
-        // 🌟 LỊCH SỬ KHÁM BỆNH - CHUYỂN TRANG KHÔNG DÙNG RECORD_ID
         composable("appointment_history") {
             AppointmentHistoryScreen(
                 onBack = { navController.popBackStack() },
@@ -223,7 +224,6 @@ fun AppNavigation(
             }
         }
 
-        // 🌟 XEM BỆNH ÁN CỦA BỆNH NHÂN (CHỈ ĐỌC)
         composable(
             route = "patient_view_record/{patientId}/{patientName}/{doctorId}",
             arguments = listOf(
@@ -241,7 +241,7 @@ fun AppNavigation(
                 patientName = pName,
                 doctorId = dId,
                 onBack = { navController.popBackStack() },
-                isReadOnly = true // 🌟 Khóa form lại để bệnh nhân chỉ được xem
+                isReadOnly = true // Bệnh nhân chỉ đọc
             )
         }
 
@@ -281,6 +281,7 @@ fun AppNavigation(
             }
         }
 
+        // --- DOCTOR SCREENS ---
         composable("doctor_dashboard") {
             val user = currentUser
             if (user != null && user.id.isNotEmpty()) {
@@ -304,7 +305,6 @@ fun AppNavigation(
             }
         }
 
-        // 🌟 BÁC SĨ CHỈNH SỬA / TẠO BỆNH ÁN
         composable(
             route = "medical_record_screen/{patientId}/{patientName}/{doctorId}",
             arguments = listOf(
@@ -322,7 +322,7 @@ fun AppNavigation(
                 patientName = pName,
                 doctorId = dId,
                 onBack = { navController.popBackStack() },
-                isReadOnly = false // 🌟 Bác sĩ thì được phép chỉnh sửa
+                isReadOnly = false // Bác sĩ được phép sửa
             )
         }
     }
