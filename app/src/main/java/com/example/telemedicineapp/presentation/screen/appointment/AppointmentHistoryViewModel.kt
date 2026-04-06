@@ -3,6 +3,7 @@ package com.example.telemedicineapp.presentation.screen.appointment
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.telemedicineapp.core.TokenManager
 import com.example.telemedicineapp.model.Appointment
 import com.google.firebase.firestore.FirebaseFirestore
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -16,7 +17,9 @@ import java.util.TimeZone
 import javax.inject.Inject
 
 @HiltViewModel
-class AppointmentHistoryViewModel @Inject constructor() : ViewModel() {
+class AppointmentHistoryViewModel @Inject constructor(
+    private val tokenManager: TokenManager // Inject TokenManager
+) : ViewModel() {
 
     private val db = FirebaseFirestore.getInstance()
 
@@ -27,17 +30,23 @@ class AppointmentHistoryViewModel @Inject constructor() : ViewModel() {
     val isLoading: StateFlow<Boolean> = _isLoading
 
     init {
-        // TODO: Đổi "PATIENT_001" thành ID thật của user đang đăng nhập lấy từ TokenManager
-        fetchMyAppointments("PATIENT_001")
+        // LẤY EMAIL TỪ BỘ NHỚ MÁY ĐỂ LÀM KHÓA TÌM KIẾM
+        val currentUserEmail = tokenManager.getEmail() ?: ""
+        if (currentUserEmail.isNotEmpty()) {
+            fetchMyAppointments(currentUserEmail)
+        } else {
+            _isLoading.value = false
+            Log.e("HistoryVM", "Không tìm thấy Email người dùng trong máy!")
+        }
     }
 
-    private fun fetchMyAppointments(patientId: String) {
+    private fun fetchMyAppointments(email: String) {
         viewModelScope.launch {
             _isLoading.value = true
 
-            // Lắng nghe Realtime các thay đổi
+            // Lọc trên Firestore: Chỉ lấy những lịch hẹn mà patientId = email của mình
             db.collection("Appointments")
-                .whereEqualTo("patientId", patientId)
+                .whereEqualTo("patientId", email)
                 .addSnapshotListener { snapshot, error ->
                     if (error != null) {
                         Log.e("HistoryVM", "Lỗi tải lịch sử: ", error)
@@ -61,7 +70,6 @@ class AppointmentHistoryViewModel @Inject constructor() : ViewModel() {
                                 null
                             }
                         }
-
                         _appointments.value = list
                     }
                     _isLoading.value = false
@@ -69,7 +77,7 @@ class AppointmentHistoryViewModel @Inject constructor() : ViewModel() {
         }
     }
 
-    // HÀM MỚI: Xử lý hủy lịch hẹn
+    // Xử lý hủy lịch hẹn
     fun cancelAppointment(appointmentId: String) {
         viewModelScope.launch {
             try {
@@ -83,7 +91,7 @@ class AppointmentHistoryViewModel @Inject constructor() : ViewModel() {
         }
     }
 
-    // Hàm hỗ trợ format giờ UTC sang giờ hiển thị đẹp mắt
+    // Hàm hỗ trợ format giờ UTC
     fun formatDateTime(utcString: String): String {
         return try {
             val utcFormat = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.getDefault())

@@ -41,7 +41,7 @@ import com.example.telemedicineapp.utils.TimeUtils
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun BookingScreen(
-    patient: User, 
+    patient: User,
     doctor: User,
     onBack: () -> Unit,
     appointmentViewModel: AppointmentViewModel = hiltViewModel()
@@ -109,7 +109,6 @@ fun BookingScreen(
             }
         ) { paddingValues ->
 
-            // Dialog Đặt lịch thành công
             if (showSuccessDialog) {
                 AlertDialog(
                     onDismissRequest = { },
@@ -143,7 +142,6 @@ fun BookingScreen(
                 )
             }
 
-            // Dialog Quét mã QR
             if (showQRDialog) {
                 PaymentQRDialog(
                     amount = "150000",
@@ -163,14 +161,13 @@ fun BookingScreen(
                 )
             }
 
-            // Dialog Lỗi trùng lịch (Conflict)
             if (showConflictDialog) {
                 AlertDialog(
                     onDismissRequest = { showConflictDialog = false },
                     title = { Text("Trùng lịch hẹn", fontWeight = FontWeight.Bold) },
                     text = { Text("Rất tiếc, khung giờ này vừa có người đặt. Vui lòng chọn khung giờ khác.") },
                     confirmButton = {
-                        TextButton(onClick = { 
+                        TextButton(onClick = {
                             showConflictDialog = false
                             appointmentViewModel.resetState()
                             appointmentViewModel.getSchedulesAndAppointments(doctor.id, selectedDate.fullDate)
@@ -188,49 +185,46 @@ fun BookingScreen(
             ) {
                 DoctorSimpleInfo(doctor)
 
-                // Chọn ngày khám
                 Column(modifier = Modifier.padding(16.dp)) {
                     Text("Ngày khám *", fontWeight = FontWeight.Bold)
                     Spacer(modifier = Modifier.height(8.dp))
                     LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         items(availableDates) { dateItem ->
                             DateSelectorItem(
-                                item = dateItem, 
-                                isSelected = selectedDate == dateItem, 
-                                onClick = { 
+                                item = dateItem,
+                                isSelected = selectedDate == dateItem,
+                                onClick = {
                                     selectedDate = dateItem
-                                    selectedTimeSlot = null 
+                                    selectedTimeSlot = null
                                 }
                             )
                         }
                     }
                 }
 
-                // Chọn giờ khám
                 Column(modifier = Modifier.padding(horizontal = 16.dp)) {
                     Text("Giờ khám *", fontWeight = FontWeight.Bold)
                     Spacer(modifier = Modifier.height(12.dp))
-                    
+
                     Text("Buổi sáng", fontWeight = FontWeight.SemiBold, color = Color.Gray, fontSize = 14.sp)
                     TimeSlotGrid(
-                        slots = schedule?.morningSlots ?: emptyList(), 
-                        selectedSlot = selectedTimeSlot, 
-                        bookedSlots = bookedSlots, 
+                        slots = schedule?.morningSlots ?: emptyList(),
+                        selectedSlot = selectedTimeSlot,
+                        bookedSlots = bookedSlots,
                         busySlots = schedule?.busySlots ?: emptyList()
                     ) { selectedTimeSlot = it }
-                    
+
                     Spacer(modifier = Modifier.height(16.dp))
-                    
+
                     Text("Buổi chiều", fontWeight = FontWeight.SemiBold, color = Color.Gray, fontSize = 14.sp)
                     TimeSlotGrid(
-                        slots = schedule?.afternoonSlots ?: emptyList(), 
-                        selectedSlot = selectedTimeSlot, 
-                        bookedSlots = bookedSlots, 
+                        slots = schedule?.afternoonSlots ?: emptyList(),
+                        selectedSlot = selectedTimeSlot,
+                        bookedSlots = bookedSlots,
                         busySlots = schedule?.busySlots ?: emptyList()
                     ) { selectedTimeSlot = it }
                 }
 
-                // Chọn phương thức thanh toán
                 Column(modifier = Modifier.padding(16.dp)) {
                     Text("Phương thức thanh toán *", fontWeight = FontWeight.Bold, fontSize = 16.sp)
                     Spacer(modifier = Modifier.height(12.dp))
@@ -247,7 +241,6 @@ fun BookingScreen(
                     )
                 }
 
-                // Lý do khám
                 Column(modifier = Modifier.padding(16.dp)) {
                     OutlinedTextField(
                         value = reason,
@@ -269,7 +262,8 @@ fun BookingScreen(
 
                             if (utcDateTime != null) {
                                 val newAppointment = Appointment(
-                                    patientId = patient.id,
+                                    // SỬA TẠI ĐÂY: Lưu email của patient thay vì id
+                                    patientId = patient.email,
                                     patientName = displayName,
                                     doctorId = doctor.id,
                                     doctorName = doctor.name,
@@ -323,11 +317,11 @@ fun TimeSlotGrid(slots: List<String>, selectedSlot: String?, bookedSlots: List<S
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 rowSlots.forEach { slot ->
                     TimeSlotItem(
-                        slot = slot, 
-                        isSelected = selectedSlot == slot, 
-                        isBooked = bookedSlots.contains(slot), 
-                        isBusy = busySlots.contains(slot), 
-                        modifier = Modifier.weight(1f), 
+                        slot = slot,
+                        isSelected = selectedSlot == slot,
+                        isBooked = bookedSlots.contains(slot),
+                        isBusy = busySlots.contains(slot),
+                        modifier = Modifier.weight(1f),
                         onClick = { onSlotSelected(slot) }
                     )
                 }
