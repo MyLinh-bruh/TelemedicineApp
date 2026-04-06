@@ -15,8 +15,11 @@ data class User(
     val name: String = "",
     val role: Role = Role.PATIENT,
 
-    // TRƯỜNG LƯU URI ẢNH TẢI LÊN
+    // TRƯỜNG LƯU URI ẢNH ĐẠI DIỆN (AVATAR)
     val imageUrl: String = "",
+
+    // 🌟 THÊM MỚI: TRƯỜNG LƯU ẢNH CHỨNG CHỈ HÀNH NGHỀ
+    val certificateUrl: String = "",
 
     // --- THÔNG TIN LIÊN HỆ ---
     val phone: String = "",

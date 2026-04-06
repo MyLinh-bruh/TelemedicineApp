@@ -2,7 +2,6 @@ package com.example.telemedicineapp.data
 
 import android.net.Uri
 import com.google.firebase.firestore.FirebaseFirestore
-import com.google.firebase.firestore.PropertyName
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
@@ -11,7 +10,7 @@ import javax.inject.Inject
 import javax.inject.Singleton
 import com.example.telemedicineapp.model.User
 
-// Cập nhật Entity để khớp với Key "e-mail" trên Firebase
+// 🌟 ĐÃ CẬP NHẬT: Thêm certificateUrl để khớp với Model
 data class UserEntity(
     val id: String = "",
     val name: String = "",
@@ -20,7 +19,8 @@ data class UserEntity(
     val doctorStatus: String = "NONE",
     val specialty: String = "",
     val hospitalName: String = "",
-    val imageUrl: String = ""
+    val imageUrl: String = "",
+    val certificateUrl: String = ""
 )
 
 enum class RegisterResult { SUCCESS, EMAIL_EXISTS, ERROR }
@@ -31,6 +31,7 @@ class AuthRepository @Inject constructor() {
     private val db = FirebaseFirestore.getInstance()
 
     // --- 1. ĐĂNG NHẬP (Dùng e-mail) ---
+    // --- 1. ĐĂNG NHẬP (Dùng e-mail) ---
     suspend fun login(emailInput: String, passInput: String): UserEntity? {
         return try {
             val snapshot = db.collection("Users")
@@ -39,7 +40,9 @@ class AuthRepository @Inject constructor() {
                 .get().await()
 
             if (!snapshot.isEmpty) {
-                snapshot.documents[0].toObject(UserEntity::class.java)
+                val doc = snapshot.documents[0]
+                // 🌟 FIX LỖI LAG: Ép lấy Document ID thật trên Firebase gán vào data class
+                doc.toObject(UserEntity::class.java)?.copy(id = doc.id)
             } else null
         } catch (e: Exception) {
             null
@@ -65,7 +68,7 @@ class AuthRepository @Inject constructor() {
         }
     }
 
-    // --- 3. ĐĂNG KÝ BÁC SĨ (CHỈ LƯU VÀO COLLECTION USERS) ---
+    // --- 3. ĐĂNG KÝ BÁC SĨ ---
     suspend fun registerDoctorRequest(
         name: String,
         email: String,
@@ -75,24 +78,25 @@ class AuthRepository @Inject constructor() {
         certificateUri: Uri
     ): RegisterResult {
         return try {
-            // Kiểm tra email tồn tại bằng key "e-mail"
+            // Kiểm tra email tồn tại
             val userSnapshot = db.collection("Users").whereEqualTo("email", email).get().await()
             if (!userSnapshot.isEmpty) return RegisterResult.EMAIL_EXISTS
 
             // Tạo Document ID mới trong Users
             val newUserDoc = db.collection("Users").document()
 
-            // Gom tất cả thông tin bác sĩ vào 1 nơi duy nhất
+            // 🌟 ĐÃ SỬA: Gom thông tin và TÁCH BIỆT 2 LOẠI ẢNH NGAY TẠI ĐÂY
             val doctorData = hashMapOf(
                 "id" to newUserDoc.id,
                 "name" to name,
-                "email" to email, // Key đồng bộ với DB của bạn
+                "email" to email,
                 "password" to pass,
                 "role" to "DOCTOR",
                 "doctorStatus" to "PENDING",
                 "specialty" to specialty,
                 "hospitalName" to hospitalName,
-                "imageUrl" to certificateUri.toString()
+                "imageUrl" to "", // Ảnh đại diện (Avatar) lúc mới đăng ký để trống
+                "certificateUrl" to certificateUri.toString() // Lưu chứng chỉ hành nghề vào đây
             )
 
             // Lưu dữ liệu
@@ -107,7 +111,6 @@ class AuthRepository @Inject constructor() {
     // --- 4. HÀM XÓA DỮ LIỆU (CHỈ XÓA TRONG USERS) ---
     suspend fun deleteDoctorRequest(email: String): Boolean {
         return try {
-            // Tìm tất cả các document có e-mail này trong collection Users
             val users = db.collection("Users")
                 .whereEqualTo("email", email)
                 .get().await()
@@ -125,8 +128,6 @@ class AuthRepository @Inject constructor() {
     }
 
     // --- 5. LẮNG NGHE TRẠNG THÁI REALTIME ---
-    // Mở file data/AuthRepository.kt, tìm hàm listenToDoctorStatus và sửa lại như sau:
-    // Trong data/AuthRepository.kt
     fun listenToDoctorStatus(email: String): Flow<String> = callbackFlow {
         val listener = db.collection("Users").whereEqualTo("email", email)
             .addSnapshotListener { snapshot, error ->
@@ -137,34 +138,30 @@ class AuthRepository @Inject constructor() {
 
                 if (snapshot != null) {
                     if (!snapshot.isEmpty) {
-                        // Nếu vẫn còn dữ liệu (đang chờ hoặc đã duyệt)
                         val status = snapshot.documents[0].getString("doctorStatus") ?: "PENDING"
                         trySend(status)
                     } else {
-                        // 🌟 QUAN TRỌNG: Nếu snapshot rỗng nghĩa là Admin đã XÓA ĐƠN
+                        // QUAN TRỌNG: Nếu snapshot rỗng nghĩa là Admin đã XÓA ĐƠN
                         trySend("DELETED")
                     }
                 }
             }
         awaitClose { listener.remove() }
     }
-    // Vị trí: data/AuthRepository.kt
-// Thêm các hàm này vào class AuthRepository đã có của bạn
 
-    // 1. Lấy thông tin chi tiết User từ Firestore bằng Email
+    // --- 6. Lấy thông tin chi tiết User từ Firestore bằng Email ---
     suspend fun getUserProfile(email: String): User? {
         return try {
             val snapshot = db.collection("Users")
                 .whereEqualTo("email", email)
                 .get().await()
             if (!snapshot.isEmpty) {
-                // Sửa dòng này để tránh lỗi infer type
                 snapshot.documents[0].toObject(User::class.java)
             } else null
         } catch (e: Exception) { null }
     }
 
-    // 2. Cập nhật hồ sơ (Update các field cụ thể)
+    // --- 7. Cập nhật hồ sơ (Update các field cụ thể) ---
     suspend fun updateUserProfile(user: User, imageUri: Uri?): Boolean {
         return try {
             val snapshot = db.collection("Users")
@@ -183,7 +180,7 @@ class AuthRepository @Inject constructor() {
                 "medicalHistory" to user.medicalHistory
             )
 
-            // Nếu có ảnh mới, lưu tạm URI (hoặc upload lên Storage nếu bạn đã cài đặt)
+            // Nếu có ảnh mới, lưu tạm URI
             imageUri?.let { updates["imageUrl"] = it.toString() }
 
             docRef.update(updates).await()

@@ -18,11 +18,9 @@ class DoctorViewModel @Inject constructor(
     private val doctorRepository: DoctorRepository
 ) : ViewModel() {
 
-    // Danh sách cho Admin (Tất cả bác sĩ)
     private val _allDoctors = MutableStateFlow<List<User>>(emptyList())
     val allDoctors: StateFlow<List<User>> = _allDoctors
 
-    // Danh sách cho Bệnh Nhân (Chỉ bác sĩ đã duyệt)
     private val _doctors = MutableStateFlow<List<User>>(emptyList())
     val doctors: StateFlow<List<User>> = _doctors
 
@@ -36,45 +34,55 @@ class DoctorViewModel @Inject constructor(
     private fun fetchAllDoctors() {
         viewModelScope.launch {
             doctorRepository.getDoctorsStream()
-                .catch { error -> /* Handle error */ }
-                .collect { doctorList ->
-                    _allDoctors.value = doctorList
-                }
+                .catch { error -> /* Xử lý lỗi nếu cần */ }
+                .collect { doctorList -> _allDoctors.value = doctorList }
         }
     }
 
     private fun fetchApprovedDoctors() {
         viewModelScope.launch {
             doctorRepository.getApprovedDoctorsStream()
-                .catch { error -> /* Handle error */ }
-                .collect { doctorList ->
-                    _doctors.value = doctorList
-                }
+                .catch { error -> /* Xử lý lỗi nếu cần */ }
+                .collect { doctorList -> _doctors.value = doctorList }
         }
     }
 
     fun approveDoctor(doctor: User) {
         viewModelScope.launch {
             try {
-                db.collection("Users")
-                    .document(doctor.id)
-                    .update("doctorStatus", "APPROVED")
-                    .await()
-            } catch (e: Exception) {
-                e.printStackTrace()
-            }
+                db.collection("Users").document(doctor.id)
+                    .update("doctorStatus", "APPROVED").await()
+            } catch (e: Exception) { e.printStackTrace() }
         }
     }
 
-    // Trong presentation/screen/doctor/DoctorViewModel.kt
     fun rejectDoctor(doctor: User) {
         viewModelScope.launch {
             try {
-                // Admin ra lệnh xóa đơn trực tiếp trên Firebase
-                val success = doctorRepository.rejectAndRemoveDoctor(doctor.id)
-                if (success) {
-                    println("Admin đã xóa đơn đăng ký của: ${doctor.name}")
+                doctorRepository.rejectAndRemoveDoctor(doctor.id)
+            } catch (e: Exception) { e.printStackTrace() }
+        }
+    }
+
+    fun deleteBusySchedule(doctorId: String, date: String) {
+        viewModelScope.launch {
+            try {
+                val snapshot = db.collection("Users")
+                    .document(doctorId)
+                    .collection("BusySchedules")
+                    .whereEqualTo("date", date)
+                    .get()
+                    .await()
+
+                for (document in snapshot.documents) {
+                    db.collection("Users")
+                        .document(doctorId)
+                        .collection("BusySchedules")
+                        .document(document.id)
+                        .delete()
+                        .await()
                 }
+
             } catch (e: Exception) {
                 e.printStackTrace()
             }

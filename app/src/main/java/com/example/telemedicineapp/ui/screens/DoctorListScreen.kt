@@ -20,7 +20,7 @@ import com.example.telemedicineapp.ui.components.DoctorItem
 import com.example.telemedicineapp.ui.components.DoctorShimmer
 import java.text.Normalizer
 
-// --- HÀM CHUẨN HÓA CHUỖI ---
+// --- HÀM CHUẨN HÓA CHUỖI (Giúp lọc không dấu, không phân biệt hoa thường) ---
 fun String.toCleanString(): String {
     val temp = Normalizer.normalize(this, Normalizer.Form.NFD)
     val pattern = "\\p{InCombiningDiacriticalMarks}+".toRegex()
@@ -48,7 +48,7 @@ fun DoctorListScreen(
     val specialties = listOf("Tất cả chuyên khoa", "Tim mạch", "Nhi khoa", "Da liễu", "Nội khoa")
     val locations = listOf("Tất cả khu vực", "Đà Nẵng", "Hà Nội", "TP. Hồ Chí Minh")
 
-    // --- LOGIC LỌC TỐI ƯU ---
+    // --- LOGIC LỌC TỐI ƯU GỘP TỪ CODE 2 ---
     val filteredDoctors = remember(searchQuery, selectedSpecialty, selectedLocation, allDoctors) {
         allDoctors.filter { doctor ->
             val docNameClean = doctor.name.toCleanString()
@@ -59,14 +59,18 @@ fun DoctorListScreen(
             val specFilterClean = selectedSpecialty.toCleanString()
             val locFilterClean = selectedLocation.toCleanString()
 
+            // 1. Tìm kiếm theo tên (Tìm chuỗi con)
             val matchesSearch = searchClean.isEmpty() || docNameClean.contains(searchClean)
 
+            // 2. Lọc chuyên khoa (Tách từ để khớp thông minh: "Nhi khoa" khớp "Khoa nhi")
             val filterWords = specFilterClean.split(" ").filter { it.isNotBlank() && it != "tat" && it != "ca" }
             val matchesSpecialty = selectedSpecialty == "Tất cả chuyên khoa" ||
                     filterWords.all { word -> docSpecClean.contains(word) }
 
+            // 3. Lọc địa điểm
             val matchesLocation = selectedLocation == "Tất cả khu vực" ||
                     docAddrClean.contains(locFilterClean)
+
             matchesSearch && matchesSpecialty && matchesLocation
         }
     }
@@ -84,7 +88,7 @@ fun DoctorListScreen(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Column {
-                    Text("Khám Phá", fontSize = 24.sp, fontWeight = FontWeight.ExtraBold)
+                    Text("Khám Phá", fontSize = 24.sp, fontWeight = FontWeight.ExtraBold, color = Color.Black)
                     Text("Tìm chuyên gia y tế phù hợp", fontSize = 12.sp, color = Color.Gray)
                 }
 
@@ -126,6 +130,7 @@ fun DoctorListScreen(
 
             Spacer(modifier = Modifier.height(20.dp))
 
+            // Ô TÌM KIẾM
             OutlinedTextField(
                 value = searchQuery,
                 onValueChange = { searchQuery = it },
@@ -144,6 +149,7 @@ fun DoctorListScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
+            // BỘ LỌC
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -152,19 +158,20 @@ fun DoctorListScreen(
                     label = "Chuyên khoa",
                     options = specialties,
                     selectedOption = selectedSpecialty,
-                    onOptionSelected = { selectedSpecialty = it }, // Hết đỏ ở đây
+                    onOptionSelected = { selectedSpecialty = it },
                     modifier = Modifier.weight(1f)
                 )
                 FilterDropdown(
                     label = "Địa điểm",
                     options = locations,
                     selectedOption = selectedLocation,
-                    onOptionSelected = { selectedLocation = it }, // Hết đỏ ở đây
+                    onOptionSelected = { selectedLocation = it },
                     modifier = Modifier.weight(1f)
                 )
             }
         }
 
+        // --- DANH SÁCH BÁC SĨ ---
         if (allDoctors.isEmpty()) {
             Column(Modifier.padding(16.dp)) {
                 repeat(5) { DoctorShimmer() }
@@ -183,7 +190,7 @@ fun DoctorListScreen(
     }
 }
 
-// --- HÀM PHỤ ĐỂ HIỂN THỊ DROPDOWN (Copy cái này vào là hết đỏ) ---
+// --- HÀM DROPDOWN PHỤ (Sửa lỗi 'it' và tích hợp vào 1 file) ---
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun FilterDropdown(
@@ -207,7 +214,7 @@ fun FilterDropdown(
             label = { Text(label, fontSize = 10.sp) },
             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
             modifier = Modifier.menuAnchor().fillMaxWidth(),
-            textStyle = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp, fontWeight = FontWeight.Bold),
+            textStyle = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.Black),
             shape = RoundedCornerShape(12.dp),
             colors = OutlinedTextFieldDefaults.colors(
                 focusedContainerColor = Color(0xFFF1F5F9),
@@ -224,7 +231,7 @@ fun FilterDropdown(
         ) {
             options.forEach { option ->
                 DropdownMenuItem(
-                    text = { Text(option, fontSize = 13.sp) },
+                    text = { Text(option, fontSize = 13.sp, color = Color.Black) },
                     onClick = {
                         onOptionSelected(option)
                         expanded = false

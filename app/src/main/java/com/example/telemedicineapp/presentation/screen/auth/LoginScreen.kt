@@ -15,8 +15,8 @@ import com.example.telemedicineapp.model.Role
 @Composable
 fun LoginScreen(
     onLoginSuccess: (Role) -> Unit,
-    onGoToRegisterPatient: () -> Unit, // Đổi tên để rõ ràng hơn
-    onGoToRegisterDoctor: () -> Unit,  // Thêm điều hướng cho Bác sĩ
+    onGoToRegisterPatient: () -> Unit,
+    onGoToRegisterDoctor: () -> Unit,
     viewModel: AuthViewModel = hiltViewModel()
 ) {
     var email by remember { mutableStateOf("") }
@@ -80,7 +80,8 @@ fun LoginScreen(
         Spacer(modifier = Modifier.height(32.dp))
 
         Button(
-            onClick = { viewModel.login(email, password) },
+            // 🌟 ĐÃ SỬA: Thêm .trim() để tự động xóa dấu cách thừa khi người dùng lỡ bấm
+            onClick = { viewModel.login(email.trim(), password.trim()) },
             modifier = Modifier
                 .fillMaxWidth()
                 .height(55.dp),
@@ -95,7 +96,6 @@ fun LoginScreen(
 
         Spacer(modifier = Modifier.height(32.dp))
 
-        // --- GIAO DIỆN CHỌN ĐĂNG KÝ MỚI ---
         Text("Bạn chưa có tài khoản?", color = MaterialTheme.colorScheme.outline)
         Spacer(modifier = Modifier.height(8.dp))
 
