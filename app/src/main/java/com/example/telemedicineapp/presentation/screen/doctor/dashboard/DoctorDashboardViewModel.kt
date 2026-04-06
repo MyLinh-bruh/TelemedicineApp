@@ -1,6 +1,5 @@
 package com.example.telemedicineapp.presentation.screen.doctor.dashboard
 
-import android.util.Log
 import androidx.lifecycle.ViewModel
 import com.example.telemedicineapp.data.UserEntity
 import com.example.telemedicineapp.model.Appointment
@@ -22,7 +21,6 @@ class DoctorDashboardViewModel @Inject constructor() : ViewModel() {
 
     private val db = FirebaseFirestore.getInstance()
 
-    // --- 1. HỒ SƠ BÁC SĨ ---
     private val _doctorProfile = MutableStateFlow<User?>(null)
     val doctorProfile: StateFlow<User?> = _doctorProfile.asStateFlow()
 
@@ -46,11 +44,10 @@ class DoctorDashboardViewModel @Inject constructor() : ViewModel() {
                                 hospitalName = entity.hospitalName,
                                 imageUrl = entity.imageUrl,
                                 certificateUrl = entity.certificateUrl,
-
                             )
                         }
                     } catch (e: Exception) {
-                        Log.e("DOCTOR_ERROR", "Lỗi convert dữ liệu bác sĩ: ${e.message}")
+                        android.util.Log.e("DOCTOR_ERROR", "Lỗi tải hồ sơ: ${e.message}")
                     }
                 }
             }
@@ -62,7 +59,7 @@ class DoctorDashboardViewModel @Inject constructor() : ViewModel() {
             .addOnCompleteListener { onComplete(it.isSuccessful) }
     }
 
-    // --- 2. LỊCH KHÁM (CALENDAR) ---
+    // --- CÁC PHẦN CÒN LẠI GIỮ NGUYÊN NHƯ CŨ ---
     private val _markedDays = MutableStateFlow<List<String>>(emptyList())
     val markedDays: StateFlow<List<String>> = _markedDays.asStateFlow()
 
@@ -81,7 +78,6 @@ class DoctorDashboardViewModel @Inject constructor() : ViewModel() {
             }
     }
 
-    // --- 3. DANH SÁCH BỆNH ÁN ---
     private val _patientRecords = MutableStateFlow<List<MedicalRecord>>(emptyList())
     val patientRecords: StateFlow<List<MedicalRecord>> = _patientRecords.asStateFlow()
 
@@ -95,7 +91,6 @@ class DoctorDashboardViewModel @Inject constructor() : ViewModel() {
             }
     }
 
-    // --- 4. LỊCH NGHỈ (BUSY SCHEDULE) ---
     private val _busySchedules = MutableStateFlow<List<DoctorSchedule>>(emptyList())
     val busySchedules: StateFlow<List<DoctorSchedule>> = _busySchedules.asStateFlow()
 
@@ -109,7 +104,6 @@ class DoctorDashboardViewModel @Inject constructor() : ViewModel() {
             .whereEqualTo("doctorId", doctorId)
             .addSnapshotListener { snapshot, error ->
                 if (error != null) return@addSnapshotListener
-
                 if (snapshot != null) {
                     val list = snapshot.documents.mapNotNull { doc ->
                         val schedule = doc.toObject(DoctorSchedule::class.java)
@@ -122,33 +116,19 @@ class DoctorDashboardViewModel @Inject constructor() : ViewModel() {
 
     fun loadSlotsForDate(date: String) {
         _availableSlotsForSetup.value = listOf(
-            "08:00", "09:00", "10:00", "11:00",
-            "13:00", "14:00", "15:00", "16:00"
+            "08:00", "09:00", "10:00", "11:00", "13:00", "14:00", "15:00", "16:00"
         )
     }
 
-    fun saveBusyRange(
-        doctorId: String,
-        startDate: String,
-        endDate: String,
-        slots: List<String>,
-        onComplete: (Boolean) -> Unit
-    ) {
-        val data = hashMapOf(
-            "doctorId" to doctorId,
-            "date" to startDate,
-            "busySlots" to slots
-        )
-        db.collection("DoctorSchedules").add(data)
-            .addOnCompleteListener { onComplete(it.isSuccessful) }
+    fun saveBusyRange(doctorId: String, startDate: String, endDate: String, slots: List<String>, onComplete: (Boolean) -> Unit) {
+        val data = hashMapOf("doctorId" to doctorId, "date" to startDate, "busySlots" to slots)
+        db.collection("DoctorSchedules").add(data).addOnCompleteListener { onComplete(it.isSuccessful) }
     }
 
     fun deleteBusySchedule(scheduleId: String, onComplete: (Boolean) -> Unit) {
-        db.collection("DoctorSchedules").document(scheduleId).delete()
-            .addOnCompleteListener { onComplete(it.isSuccessful) }
+        db.collection("DoctorSchedules").document(scheduleId).delete().addOnCompleteListener { onComplete(it.isSuccessful) }
     }
 
-    // --- 5. KÍCH HOẠT TẤT CẢ ---
     fun listenToData(doctorId: String) {
         fetchDoctorProfile(doctorId)
         fetchPatientRecords(doctorId)

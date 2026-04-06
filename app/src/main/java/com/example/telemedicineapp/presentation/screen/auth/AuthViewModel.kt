@@ -83,8 +83,9 @@ class AuthViewModel @Inject constructor(
                                 val status = try { DoctorStatus.valueOf(userEntity.doctorStatus.uppercase()) } catch (e: Exception) { DoctorStatus.NONE }
 
                                 // Cập nhật lại currentUser
+                                // Bạn thay khối này vào trong observeCurrentUser() và login() nhé
                                 _currentUser.value = User(
-                                    id = doc.id, // Lấy ID chuẩn từ Document
+                                    id = doc.id, // Ở hàm login thì là id = userEntity.id
                                     email = userEntity.email,
                                     name = userEntity.name,
                                     role = role,
@@ -92,7 +93,15 @@ class AuthViewModel @Inject constructor(
                                     specialty = userEntity.specialty,
                                     hospitalName = userEntity.hospitalName,
                                     imageUrl = userEntity.imageUrl,
-                                    certificateUrl = userEntity.certificateUrl
+                                    certificateUrl = userEntity.certificateUrl,
+                                    phone = userEntity.phone,
+                                    address = userEntity.address,
+                                    gender = userEntity.gender,
+                                    description = userEntity.description,
+                                    bankName = userEntity.bankName,
+                                    bankAccountNumber = userEntity.bankAccountNumber,
+                                    bloodType = userEntity.bloodType,
+                                    medicalHistory = userEntity.medicalHistory
                                 )
                             }
                         } catch (e: Exception) {

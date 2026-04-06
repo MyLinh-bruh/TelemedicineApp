@@ -72,8 +72,22 @@ class MedicalRecordViewModel @Inject constructor() : ViewModel() {
                     lastUpdated = currentTime
                 )
 
-                // 4. Đẩy lên Firestore (dùng .set để ghi đè hoặc tạo mới tại đúng ID đó)
+                // 4. Đẩy lên Firestore
                 collection.document(finalId).set(finalRecord).await()
+
+                // 🌟 5. TỰ ĐỘNG ĐỔI TRẠNG THÁI LỊCH HẸN THÀNH "COMPLETED" (ĐÃ KHÁM)
+                val apptQuery = db.collection("Appointments")
+                    .whereEqualTo("doctorId", doctorId)
+                    .whereEqualTo("patientId", record.patientId)
+                    .get()
+                    .await()
+
+                for (doc in apptQuery.documents) {
+                    val status = doc.getString("status")
+                    if (status == "PENDING" || status == "PAID") {
+                        doc.reference.update("status", "COMPLETED").await()
+                    }
+                }
 
                 onComplete(true)
             } catch (e: Exception) {

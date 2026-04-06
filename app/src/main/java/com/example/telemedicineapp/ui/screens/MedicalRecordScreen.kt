@@ -21,6 +21,9 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.example.telemedicineapp.presentation.screen.doctor.MedicalRecordViewModel
 import com.example.telemedicineapp.ui.components.PatientInfoForm
+import com.google.firebase.firestore.FirebaseFirestore
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.tasks.await
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -29,13 +32,16 @@ fun MedicalRecordScreen(
     patientName: String,
     doctorId: String,
     onBack: () -> Unit,
-    // 🌟 THÊM THAM SỐ NÀY ĐỂ XÁC ĐỊNH CHẾ ĐỘ XEM
     isReadOnly: Boolean = false,
     viewModel: MedicalRecordViewModel = hiltViewModel()
 ) {
     val context = LocalContext.current
     val record by viewModel.recordState.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
+
+    // Thêm CoroutineScope và Firestore để cập nhật Lịch hẹn
+    val coroutineScope = rememberCoroutineScope()
+    val db = FirebaseFirestore.getInstance()
 
     LaunchedEffect(patientId) {
         viewModel.fetchRecord(patientId, patientName)
@@ -44,7 +50,6 @@ fun MedicalRecordScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                // 🌟 THAY ĐỔI TIÊU ĐỀ THEO CHẾ ĐỘ
                 title = { Text(if (isReadOnly) "Chi tiết Bệnh án" else "Hồ sơ Bệnh án", fontWeight = FontWeight.Bold) },
                 navigationIcon = {
                     IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, contentDescription = "Back") }
@@ -80,6 +85,9 @@ fun MedicalRecordScreen(
                 var diagnosis by remember { mutableStateOf(currentRecord.diagnosis) }
                 var prescription by remember { mutableStateOf(currentRecord.prescription) }
 
+                // Cờ khóa nút khi đang lưu
+                var isSavingProgress by remember { mutableStateOf(false) }
+
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
@@ -95,8 +103,6 @@ fun MedicalRecordScreen(
                         Text("Cập nhật lần cuối: ${currentRecord.lastUpdated}", fontSize = 12.sp, color = Color.Gray)
                     }
 
-                    // Lưu ý: Nếu component PatientInfoForm này của bạn chưa có thuộc tính `isReadOnly`,
-                    // bạn cũng cần sửa component đó tương tự để các ô nhập không chỉnh sửa được.
                     PatientInfoForm(
                         name = name, onNameChange = { if (!isReadOnly) name = it },
                         age = age, onAgeChange = { if (!isReadOnly) age = it },
@@ -135,10 +141,10 @@ fun MedicalRecordScreen(
 
                     Spacer(modifier = Modifier.height(8.dp))
 
-                    // 🌟 ẨN NÚT LƯU KHI CHỈ XEM
                     if (!isReadOnly) {
                         Button(
                             onClick = {
+                                isSavingProgress = true
                                 val updatedRecord = currentRecord.copy(
                                     patientName = name,
                                     height = height, weight = weight, bloodType = bloodType,
@@ -148,20 +154,45 @@ fun MedicalRecordScreen(
                                 )
                                 viewModel.saveRecord(updatedRecord, doctorId) { success ->
                                     if (success) {
-                                        Toast.makeText(context, "Đã gửi phiếu khám cho bệnh nhân $name!", Toast.LENGTH_LONG).show()
-                                        onBack()
+                                        // 🌟 CẬP NHẬT TRẠNG THÁI LỊCH HẸN SANG "ĐÃ KHÁM"
+                                        coroutineScope.launch {
+                                            try {
+                                                val snapshot = db.collection("Appointments")
+                                                    .whereEqualTo("patientId", patientId)
+                                                    .whereEqualTo("doctorId", doctorId)
+                                                    .whereEqualTo("status", "PAID") // Tìm các lịch đã thanh toán đang chờ khám
+                                                    .get().await()
+
+                                                for (doc in snapshot.documents) {
+                                                    db.collection("Appointments").document(doc.id)
+                                                        .update("status", "COMPLETED").await()
+                                                }
+
+                                                Toast.makeText(context, "Đã lưu hồ sơ và hoàn thành lịch khám!", Toast.LENGTH_LONG).show()
+                                                onBack()
+                                            } catch (e: Exception) {
+                                                Toast.makeText(context, "Lỗi cập nhật lịch hẹn!", Toast.LENGTH_SHORT).show()
+                                                isSavingProgress = false
+                                            }
+                                        }
                                     } else {
                                         Toast.makeText(context, "Lỗi khi lưu hồ sơ!", Toast.LENGTH_SHORT).show()
+                                        isSavingProgress = false
                                     }
                                 }
                             },
                             modifier = Modifier.fillMaxWidth().height(56.dp),
                             shape = RoundedCornerShape(12.dp),
+                            enabled = !isSavingProgress,
                             colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF10B981))
                         ) {
-                            Icon(Icons.Default.Send, contentDescription = null, tint = Color.White)
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text("XÁC NHẬN & GỬI PHIẾU KHÁM", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                            if (isSavingProgress) {
+                                CircularProgressIndicator(color = Color.White, modifier = Modifier.size(24.dp))
+                            } else {
+                                Icon(Icons.Default.Send, contentDescription = null, tint = Color.White)
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text("XÁC NHẬN & GỬI PHIẾU KHÁM", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                            }
                         }
                     }
 
@@ -194,21 +225,20 @@ fun RecordTextField(
     label: String,
     onValueChange: (String) -> Unit,
     modifier: Modifier = Modifier,
-    isReadOnly: Boolean = false, // 🌟 THÊM THAM SỐ NÀY
+    isReadOnly: Boolean = false,
     singleLine: Boolean = true,
     minLines: Int = 1
 ) {
     OutlinedTextField(
         value = value,
-        onValueChange = { if (!isReadOnly) onValueChange(it) }, // Khóa nhập liệu nếu là readOnly
+        onValueChange = { if (!isReadOnly) onValueChange(it) },
         label = { Text(label, fontSize = 13.sp) },
-        readOnly = isReadOnly, // Vô hiệu hóa bàn phím bật lên
-        enabled = !isReadOnly, // 🌟 Vô hiệu hóa tương tác (làm xám)
+        readOnly = isReadOnly,
+        enabled = !isReadOnly,
         modifier = modifier.fillMaxWidth().padding(vertical = 4.dp),
         singleLine = singleLine,
         minLines = minLines,
         shape = RoundedCornerShape(8.dp),
-        // Để không bị xám quá mức khi readOnly (tuỳ chọn)
         colors = OutlinedTextFieldDefaults.colors(
             disabledTextColor = Color.Black,
             disabledBorderColor = Color.LightGray,
