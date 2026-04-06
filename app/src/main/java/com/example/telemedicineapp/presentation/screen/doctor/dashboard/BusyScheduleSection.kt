@@ -20,14 +20,21 @@ import androidx.compose.ui.unit.sp
 import com.example.telemedicineapp.model.DoctorSchedule
 import java.util.*
 
+@OptIn(ExperimentalMaterial3Api::class) // 🌟 Thêm dòng này để Compose không báo lỗi thẻ FilterChip
 @Composable
 fun BusyScheduleSection(doctorId: String, viewModel: DoctorDashboardViewModel) {
     val context = LocalContext.current
 
-    // 🌟 ĐÃ FIX LỖI "Cannot infer type": Ép rõ kiểu List<DoctorSchedule> và List<String>
-    // kèm theo giá trị khởi tạo (initial = emptyList()) để Compose không bị lú
     val busySchedules: List<DoctorSchedule> by viewModel.busySchedules.collectAsState(initial = emptyList())
     val availableSlots: List<String> by viewModel.availableSlotsForSetup.collectAsState(initial = emptyList())
+
+    // 🌟 THÊM DEFAULT SLOTS: Danh sách các khung giờ chuẩn để bác sĩ chọn (từ 8h sáng -> 16h30 chiều)
+    val defaultSlots = listOf(
+        "08:00 - 08:30", "08:30 - 09:00", "09:00 - 09:30", "09:30 - 10:00", "10:00 - 10:30", "10:30 - 11:00", "11:00 - 11:30",
+        "13:00 - 13:30", "13:30 - 14:00", "14:00 - 14:30", "14:30 - 15:00", "15:00 - 15:30", "15:30 - 16:00", "16:00 - 16:30"
+    )
+    // Nếu ViewModel trả về rỗng, dùng luôn defaultSlots
+    val displaySlots = availableSlots.takeIf { it.isNotEmpty() } ?: defaultSlots
 
     // States cho nghỉ 1 ngày hoặc nghỉ dài ngày
     var startDate by remember { mutableStateOf("") }
@@ -63,17 +70,17 @@ fun BusyScheduleSection(doctorId: String, viewModel: DoctorDashboardViewModel) {
                         Spacer(Modifier.height(16.dp))
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                             Text("Chọn giờ bận:", fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                            // NÚT CHỌN CẢ NGÀY
+                            // NÚT CHỌN CẢ NGÀY (Dùng size của displaySlots để bắt điều kiện)
                             TextButton(onClick = {
-                                if (selectedBusySlots.size == availableSlots.size) selectedBusySlots.clear()
-                                else { selectedBusySlots.clear(); selectedBusySlots.addAll(availableSlots) }
+                                if (selectedBusySlots.size == displaySlots.size) selectedBusySlots.clear()
+                                else { selectedBusySlots.clear(); selectedBusySlots.addAll(displaySlots) }
                             }) {
-                                Text(if (selectedBusySlots.size == availableSlots.size) "Bỏ chọn" else "Chọn cả ngày", fontSize = 13.sp)
+                                Text(if (selectedBusySlots.size == displaySlots.size) "Bỏ chọn" else "Chọn cả ngày", fontSize = 13.sp)
                             }
                         }
 
-                        // Hiển thị Grid giờ bận
-                        availableSlots.chunked(2).forEach { row ->
+                        // 🌟 Hiển thị Grid giờ bận từ biến displaySlots
+                        displaySlots.chunked(2).forEach { row ->
                             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 row.forEach { slot ->
                                     val isSelected = selectedBusySlots.contains(slot)
@@ -83,6 +90,10 @@ fun BusyScheduleSection(doctorId: String, viewModel: DoctorDashboardViewModel) {
                                         label = { Text(slot, fontSize = 11.sp) },
                                         modifier = Modifier.weight(1f)
                                     )
+                                }
+                                // Mẹo nhỏ: Bù thêm Spacer nếu hàng đó bị lẻ 1 cột (để giao diện không bị lệch)
+                                if (row.size < 2) {
+                                    Spacer(modifier = Modifier.weight(1f))
                                 }
                             }
                         }
@@ -114,7 +125,6 @@ fun BusyScheduleSection(doctorId: String, viewModel: DoctorDashboardViewModel) {
             Text("Lịch nghỉ hiện tại", fontWeight = FontWeight.Bold, color = Color.Gray)
         }
 
-        // 🌟 ĐÃ FIX: Chỉ định rõ schedule là class DoctorSchedule
         items(busySchedules) { schedule: DoctorSchedule ->
             Card(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), colors = CardDefaults.cardColors(containerColor = Color.White)) {
                 Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {

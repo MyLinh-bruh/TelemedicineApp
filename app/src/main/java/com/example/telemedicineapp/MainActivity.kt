@@ -165,15 +165,13 @@ fun AppNavigation(
             )
         }
 
-        // 🌟 ĐÃ CẬP NHẬT TRUYỀN TÊN VÀO TRANG CHỦ BỆNH NHÂN
+        // 🌟 TRANG CHỦ BỆNH NHÂN
         composable("patient_home") {
             val user = currentUser
-
-            // Ưu tiên hiển thị Tên (Name), nếu Name trống thì lấy Email, nếu cả 2 trống thì để "Khách"
             val displayName = user?.name?.takeIf { it.isNotBlank() } ?: user?.email ?: "Khách"
 
             DoctorListScreen(
-                userName = displayName, // Truyền tên hiển thị
+                userName = displayName,
                 userImageUrl = user?.imageUrl ?: "",
                 allDoctors = approvedDoctorsForPatient,
                 onDoctorClick = { doctor ->
@@ -196,12 +194,11 @@ fun AppNavigation(
             PatientProfileScreen(navController = navController)
         }
 
-        // 🌟 ĐÃ CẬP NHẬT LẠI ROUTE LỊCH SỬ KHÁM
+        // 🌟 LỊCH SỬ KHÁM BỆNH - CHUYỂN TRANG KHÔNG DÙNG RECORD_ID
         composable("appointment_history") {
             AppointmentHistoryScreen(
                 onBack = { navController.popBackStack() },
                 onViewRecordClick = { appointment ->
-                    // Mở thẳng bệnh án dựa vào thông tin có sẵn trong lịch hẹn, KHÔNG cần recordId
                     val encodedName = Uri.encode(appointment.patientName.ifEmpty { "Khách" })
                     navController.navigate("patient_view_record/${appointment.patientId}/$encodedName/${appointment.doctorId}")
                 }
@@ -215,10 +212,8 @@ fun AppNavigation(
                     patientId = user.email,
                     onBack = { navController.popBackStack() },
                     onRecordClick = { record ->
-                        // Nếu trang danh sách bệnh án vẫn cần dùng recordId thì giữ nguyên,
-                        // hoặc bạn có thể đổi logic ở đây giống hệt onViewRecordClick ở trên nếu muốn.
-                        // Tạm thời giữ nguyên điều hướng mặc định nếu bạn chưa yêu cầu đổi.
-                        navController.navigate("patient_record_detail/${record.id}")
+                        val encodedName = Uri.encode(record.patientName.ifEmpty { "Khách" })
+                        navController.navigate("patient_view_record/${record.patientId}/$encodedName/${record.doctorId}")
                     }
                 )
             } else {
@@ -228,7 +223,7 @@ fun AppNavigation(
             }
         }
 
-        // 🌟 ROUTE MỚI: Mở bệnh án trực tiếp không cần recordId (Thay cho route patient_record_detail cũ nếu bạn muốn xóa)
+        // 🌟 XEM BỆNH ÁN CỦA BỆNH NHÂN (CHỈ ĐỌC)
         composable(
             route = "patient_view_record/{patientId}/{patientName}/{doctorId}",
             arguments = listOf(
@@ -247,21 +242,6 @@ fun AppNavigation(
                 doctorId = dId,
                 onBack = { navController.popBackStack() },
                 isReadOnly = true // 🌟 Khóa form lại để bệnh nhân chỉ được xem
-            )
-        }
-
-        // (Lưu ý: Tôi vẫn để lại route patient_record_detail cũ ở đây dự phòng trường hợp trang
-        // patient_medical_records bên trên của bạn vẫn đang gọi nó. Nếu bạn đã đổi luôn ở danh sách thì có thể xóa route này)
-        composable(
-            route = "patient_record_detail/{recordId}",
-            arguments = listOf(navArgument("recordId") { type = NavType.StringType })
-        ) { backStackEntry ->
-            MedicalRecordScreen(
-                patientId = currentUser?.email ?: "",
-                patientName = currentUser?.name ?: "",
-                doctorId = "",
-                onBack = { navController.popBackStack() },
-                isReadOnly = true
             )
         }
 
@@ -324,6 +304,7 @@ fun AppNavigation(
             }
         }
 
+        // 🌟 BÁC SĨ CHỈNH SỬA / TẠO BỆNH ÁN
         composable(
             route = "medical_record_screen/{patientId}/{patientName}/{doctorId}",
             arguments = listOf(
@@ -341,7 +322,7 @@ fun AppNavigation(
                 patientName = pName,
                 doctorId = dId,
                 onBack = { navController.popBackStack() },
-                isReadOnly = false
+                isReadOnly = false // 🌟 Bác sĩ thì được phép chỉnh sửa
             )
         }
     }

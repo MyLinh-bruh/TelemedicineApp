@@ -1,7 +1,12 @@
 package com.example.telemedicineapp.ui.screens
 
+import android.graphics.BitmapFactory
+import android.util.Base64
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -13,7 +18,10 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -27,7 +35,8 @@ import kotlinx.coroutines.delay
 @Composable
 fun AppointmentHistoryScreen(
     onBack: () -> Unit,
-    onViewRecordClick: (Appointment) -> Unit = {}, // 🌟 TRUYỀN THẲNG APPOINTMENT KHI CLICK
+    // 🌟 ĐÃ SỬA: Đổi tên thành onViewRecordClick và nhận vào đối tượng Appointment cho khớp với MainActivity
+    onViewRecordClick: (Appointment) -> Unit = {},
     viewModel: AppointmentHistoryViewModel = hiltViewModel()
 ) {
     val appointments by viewModel.appointments.collectAsState()
@@ -40,7 +49,6 @@ fun AppointmentHistoryScreen(
     var isAscending by remember { mutableStateOf(true) }
     var appointmentToCancel by remember { mutableStateOf<Appointment?>(null) }
 
-    // --- STATES CHO THANH TOÁN TIẾP TỤC ---
     var appointmentToPay by remember { mutableStateOf<Appointment?>(null) }
     var showPaymentChoiceDialog by remember { mutableStateOf(false) }
     var selectedPaymentMethod by remember { mutableStateOf("STRIPE") }
@@ -95,11 +103,9 @@ fun AppointmentHistoryScreen(
                 appointmentToPay = null
             },
             onDismiss = {
-                // 🌟 Bấm ra ngoài thì chỉ ẩn hộp thoại, giữ lại lịch chờ
                 showQRDialog = false
             },
             onCancelTransaction = {
-                // 🌟 Bấm hủy giao dịch thì xóa luôn lịch
                 showQRDialog = false
                 viewModel.deleteAppointment(appointmentToPay!!.id)
                 appointmentToPay = null
@@ -135,7 +141,6 @@ fun AppointmentHistoryScreen(
         )
     }
 
-    // 🌟 XỬ LÝ DIALOG HỦY LỊCH / HỦY THANH TOÁN
     if (appointmentToCancel != null) {
         val isPending = appointmentToCancel?.status == "PENDING"
         AlertDialog(
@@ -150,7 +155,6 @@ fun AppointmentHistoryScreen(
             confirmButton = {
                 TextButton(
                     onClick = {
-                        // 🌟 Nếu PENDING (chờ thanh toán) -> Xóa thẳng. Nếu PAID (đã thanh toán) -> Đổi status thành CANCELLED
                         if (isPending) {
                             viewModel.deleteAppointment(appointmentToCancel!!.id)
                         } else {
@@ -205,9 +209,7 @@ fun AppointmentHistoryScreen(
                             }
                         }
                     },
-                    modifier = Modifier
-                        .weight(1f)
-                        .height(50.dp),
+                    modifier = Modifier.weight(1f).height(50.dp),
                     shape = RoundedCornerShape(24.dp),
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedContainerColor = Color(0xFFF1F5F9),
@@ -221,9 +223,7 @@ fun AppointmentHistoryScreen(
 
                 IconButton(
                     onClick = { isAscending = !isAscending },
-                    modifier = Modifier
-                        .size(45.dp)
-                        .background(Color(0xFFEBF8FF), RoundedCornerShape(12.dp))
+                    modifier = Modifier.size(45.dp).background(Color(0xFFEBF8FF), RoundedCornerShape(12.dp))
                 ) {
                     Icon(
                         imageVector = if (isAscending) Icons.Default.ArrowDownward else Icons.Default.ArrowUpward,
@@ -277,10 +277,12 @@ fun AppointmentHistoryScreen(
                                 showPaymentChoiceDialog = true
                             },
                             onTimeout = {
-                                // 🌟 NẾU HẾT 10 PHÚT CHỜ THANH TOÁN -> XÓA LUÔN LỊCH HẸN ĐÓ
                                 viewModel.deleteAppointment(appt.id)
                             },
-                            onViewRecordClick = { onViewRecordClick(appt) } // 🌟 GỌI CALLBACK KHI CLICK
+                            onViewRecordClick = {
+                                // 🌟 TRUYỀN TOÀN BỘ ĐỐI TƯỢNG APPT ĐỂ MAINACTIVITY LẤY DATA
+                                onViewRecordClick(appt)
+                            }
                         )
                     }
                 }
@@ -296,8 +298,23 @@ fun AppointmentCard(
     onCancelClick: () -> Unit,
     onPayClick: () -> Unit,
     onTimeout: () -> Unit,
-    onViewRecordClick: () -> Unit // 🌟 THÊM THAM SỐ NÀY
+    onViewRecordClick: () -> Unit = {}
 ) {
+    // 🌟 LOGIC GIẢI MÃ ẢNH BÁC SĨ TỪ BASE64
+    val avatarBitmap = remember(appointment.doctorImageUrl) {
+        if (appointment.doctorImageUrl.isNotBlank()) {
+            try {
+                val cleanBase64 = if (appointment.doctorImageUrl.contains(",")) {
+                    appointment.doctorImageUrl.substringAfter(",")
+                } else {
+                    appointment.doctorImageUrl
+                }
+                val imageBytes = Base64.decode(cleanBase64, Base64.DEFAULT)
+                BitmapFactory.decodeByteArray(imageBytes, 0, imageBytes.size)
+            } catch (e: Exception) { null }
+        } else null
+    }
+
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
@@ -324,12 +341,25 @@ fun AppointmentCard(
             Spacer(modifier = Modifier.height(12.dp))
 
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(
-                    modifier = Modifier
-                        .size(48.dp)
-                        .background(Color(0xFFEBF8FF), CircleShape),
-                    contentAlignment = Alignment.Center
-                ) { Text("👨‍⚕️", fontSize = 20.sp) }
+                // 🌟 HIỂN THỊ AVATAR BÁC SĨ HOẶC ICON MẶC ĐỊNH
+                if (avatarBitmap != null) {
+                    Image(
+                        bitmap = avatarBitmap.asImageBitmap(),
+                        contentDescription = "Avatar Bác sĩ",
+                        modifier = Modifier
+                            .size(48.dp)
+                            .clip(CircleShape)
+                            .border(1.dp, Color(0xFFE2E8F0), CircleShape),
+                        contentScale = ContentScale.Crop
+                    )
+                } else {
+                    Box(
+                        modifier = Modifier
+                            .size(48.dp)
+                            .background(Color(0xFFEBF8FF), CircleShape),
+                        contentAlignment = Alignment.Center
+                    ) { Text("👨‍⚕️", fontSize = 20.sp) }
+                }
 
                 Spacer(modifier = Modifier.width(12.dp))
 

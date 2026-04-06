@@ -6,8 +6,9 @@ data class Appointment(
     val patientName: String = "",
     val doctorId: String = "",
     val doctorName: String = "",
+    val doctorImageUrl: String = "", // 🌟 THÊM TRƯỜNG NÀY ĐỂ LƯU ẢNH BÁC SĨ
     val dateTimeUtc: String = "",
     val reason: String = "",
     val status: String = "PENDING",
-    val createdAt: Long = System.currentTimeMillis() // 👈 THÊM DÒNG NÀY ĐỂ ĐẾM NGƯỢC 10 PHÚT
+    val createdAt: Long = System.currentTimeMillis()
 )
