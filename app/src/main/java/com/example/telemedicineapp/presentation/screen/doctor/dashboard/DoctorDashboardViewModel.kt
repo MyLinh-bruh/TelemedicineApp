@@ -10,6 +10,7 @@ import com.example.telemedicineapp.model.User
 import com.example.telemedicineapp.model.Role
 import com.example.telemedicineapp.model.DoctorStatus
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.SetOptions // 🌟 IMPORT BÙA HỘ MỆNH VÀO ĐÂY
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -30,10 +31,8 @@ class DoctorDashboardViewModel @Inject constructor() : ViewModel() {
             .addSnapshotListener { snapshot, _ ->
                 if (snapshot != null && snapshot.exists()) {
                     try {
-                        // Sử dụng UserEntity để hứng dữ liệu String từ Firebase
                         val entity = snapshot.toObject(UserEntity::class.java)
                         if (entity != null) {
-                            // Ép kiểu từ String sang Enum an toàn
                             val role = try { Role.valueOf(entity.role.uppercase()) } catch (e: Exception) { Role.DOCTOR }
                             val status = try { DoctorStatus.valueOf(entity.doctorStatus.uppercase()) } catch (e: Exception) { DoctorStatus.APPROVED }
 
@@ -46,7 +45,8 @@ class DoctorDashboardViewModel @Inject constructor() : ViewModel() {
                                 specialty = entity.specialty,
                                 hospitalName = entity.hospitalName,
                                 imageUrl = entity.imageUrl,
-                                certificateUrl = entity.certificateUrl
+                                certificateUrl = entity.certificateUrl,
+
                             )
                         }
                     } catch (e: Exception) {
@@ -57,7 +57,8 @@ class DoctorDashboardViewModel @Inject constructor() : ViewModel() {
     }
 
     fun updateProfile(user: User, onComplete: (Boolean) -> Unit) {
-        db.collection("Users").document(user.id).set(user)
+        // 🌟 FIX LỖI MẤT PASSWORD: Dùng SetOptions.merge() để giữ nguyên các cột cũ không bị ghi đè
+        db.collection("Users").document(user.id).set(user, SetOptions.merge())
             .addOnCompleteListener { onComplete(it.isSuccessful) }
     }
 
