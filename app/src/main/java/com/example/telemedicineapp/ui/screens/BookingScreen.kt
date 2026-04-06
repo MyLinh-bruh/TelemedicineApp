@@ -44,10 +44,22 @@ import com.example.telemedicineapp.ui.components.PaymentQRDialog
 import com.example.telemedicineapp.utils.DateItem
 import com.example.telemedicineapp.utils.TimeUtils
 
-// 🌟 HÀM HỖ TRỢ ĐỂ KIỂM TRA CHỒNG LẤN THỜI GIAN (TỪ CODE CỦA LINH)
+// 🌟 HÀM SO KHỚP CHÍNH XÁC: Dành cho lịch đã đặt
+private fun isExactMatch(currentSlot: String, bookedSlot: String): Boolean {
+    return try {
+        val curStart = currentSlot.split("-")[0].trim()
+        val bookedStart = bookedSlot.split("-")[0].trim()
+        curStart == bookedStart
+    } catch (e: Exception) {
+        false
+    }
+}
+
+// 🌟 CÁC HÀM TÍNH TOÁN CHỒNG LẤN: Dành cho lịch bận của bác sĩ
 private fun timeToMinutes(time: String): Int {
     return try {
-        val parts = time.trim().split(":")
+        val cleanTime = time.trim()
+        val parts = cleanTime.split(":")
         parts[0].toInt() * 60 + parts[1].toInt()
     } catch (e: Exception) {
         0
@@ -55,17 +67,23 @@ private fun timeToMinutes(time: String): Int {
 }
 
 private fun isOverlapping(currentSlot: String, targetSlot: String): Boolean {
-    val curParts = currentSlot.split("-")
-    val curStart = timeToMinutes(curParts[0])
-    val curEnd = if (curParts.size > 1) timeToMinutes(curParts[1]) else curStart + 30
+    return try {
+        val curParts = currentSlot.split("-").map { it.trim() }
+        val curStart = timeToMinutes(curParts[0])
+        val curEnd = if (curParts.size > 1) timeToMinutes(curParts[1]) else curStart + 30
 
-    val targetParts = targetSlot.split("-")
-    val targetStart = timeToMinutes(targetParts[0])
-    val targetEnd = if (targetParts.size > 1) timeToMinutes(targetParts[1]) else targetStart + 30
+        val targetParts = targetSlot.split("-").map { it.trim() }
+        val targetStart = timeToMinutes(targetParts[0])
+        val targetEnd = if (targetParts.size > 1) timeToMinutes(targetParts[1]) else targetStart + 30
 
-    return curStart < targetEnd && curEnd > targetStart
+        val maxStart = maxOf(curStart, targetStart)
+        val minEnd = minOf(curEnd, targetEnd)
+
+        maxStart < minEnd
+    } catch (e: Exception) {
+        false
+    }
 }
-
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -78,13 +96,10 @@ fun BookingScreen(
 ) {
     val context = LocalContext.current
 
-    // Tự động tải thông tin bệnh nhân để kiểm tra độ hoàn thiện
     LaunchedEffect(Unit) {
         profileViewModel.loadProfile()
     }
     val patient = profileViewModel.userState
-
-    // Biến xác định bệnh nhân có thiếu thông tin không
     val isProfileIncomplete = patient != null && (patient.name.isBlank() || patient.phone.isBlank() || patient.address.isBlank())
 
     val bookingState by appointmentViewModel.bookingState.collectAsState()
@@ -120,7 +135,6 @@ fun BookingScreen(
         }
     }
 
-    // Hiển thị vòng xoay nếu dữ liệu bệnh nhân đang được lấy về
     if (profileViewModel.isLoading) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             CircularProgressIndicator(color = Color(0xFF2563EB))
@@ -130,7 +144,6 @@ fun BookingScreen(
 
     if (patient == null) return
 
-    // DIALOG CẢNH BÁO BẮT BUỘC ĐIỀN THÔNG TIN
     if (isProfileIncomplete) {
         AlertDialog(
             onDismissRequest = { onBack() },
@@ -347,7 +360,7 @@ fun BookingScreen(
                 Button(
                     onClick = {
                         if (selectedTimeSlot != null && !isProfileIncomplete) {
-                            val startTime = selectedTimeSlot!!.split(" - ")[0]
+                            val startTime = selectedTimeSlot!!.split("-")[0].trim()
                             val utcDateTime = TimeUtils.convertLocalToUtcString(selectedDate.fullDate, startTime)
                             val displayName = if (patient.name.isBlank()) "Bệnh nhân ẩn danh" else patient.name
 
@@ -357,6 +370,7 @@ fun BookingScreen(
                                     patientName = displayName,
                                     doctorId = doctor.id,
                                     doctorName = doctor.name,
+                                    doctorImageUrl = doctor.imageUrl,
                                     dateTimeUtc = utcDateTime,
                                     reason = reason,
                                     status = "PENDING",
@@ -398,7 +412,6 @@ fun PaymentMethodOption(title: String, isSelected: Boolean, onClick: () -> Unit)
     }
 }
 
-// 🌟 SỬ DỤNG LOGIC isOverlapping() CỦA LINH ĐỂ KIỂM TRA ĐÈ KHUNG GIỜ
 @Composable
 fun TimeSlotGrid(
     slots: List<String>,
@@ -413,8 +426,8 @@ fun TimeSlotGrid(
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 rowSlots.forEach { slot ->
 
-                    // So sánh sự chồng chéo của khung giờ trên giao diện và khung giờ trong database
-                    val isBooked = bookedSlots.any { booked -> isOverlapping(slot, booked) }
+                    // 🌟 SỬ DỤNG 2 BỘ LỌC RIÊNG BIỆT
+                    val isBooked = bookedSlots.any { booked -> isExactMatch(slot, booked) }
                     val isBusy = busySlots.any { busy -> isOverlapping(slot, busy) }
 
                     TimeSlotItem(
@@ -436,13 +449,13 @@ fun TimeSlotGrid(
 fun TimeSlotItem(slot: String, isSelected: Boolean, isBooked: Boolean, isBusy: Boolean, modifier: Modifier, onClick: () -> Unit) {
     val isDisable = isBooked || isBusy
     val bgColor = when {
-        isBooked -> Color(0xFFFEE2E2) // Màu đỏ nhạt
-        isBusy -> Color(0xFFEEEEEE)  // Màu xám
-        isSelected -> Color(0xFF3B82F6) // Màu xanh dương
+        isBooked -> Color(0xFFFEE2E2)
+        isBusy -> Color(0xFFEEEEEE)
+        isSelected -> Color(0xFF3B82F6)
         else -> Color.White
     }
     val textColor = when {
-        isBooked -> Color(0xFFDC2626) // Chữ đỏ đậm
+        isBooked -> Color(0xFFDC2626)
         isBusy -> Color.Gray
         isSelected -> Color.White
         else -> Color.Black
@@ -464,7 +477,6 @@ fun TimeSlotItem(slot: String, isSelected: Boolean, isBooked: Boolean, isBusy: B
     }
 }
 
-// 🌟 SỬ DỤNG LOGIC HIỂN THỊ AVATAR BASE64 TỪ CODE CỦA BẠN
 @Composable
 fun DoctorSimpleInfo(doctor: User) {
     Surface(modifier = Modifier.fillMaxWidth().padding(16.dp), color = Color.White, shape = RoundedCornerShape(12.dp), shadowElevation = 1.dp) {
@@ -474,7 +486,7 @@ fun DoctorSimpleInfo(doctor: User) {
                 modifier = Modifier
                     .size(50.dp)
                     .clip(CircleShape)
-                    .background(Color(0xFF2563EB)), // Màu nền xanh dương
+                    .background(Color(0xFF2563EB)),
                 contentAlignment = Alignment.Center
             ) {
                 if (doctor.imageUrl.isNotBlank()) {

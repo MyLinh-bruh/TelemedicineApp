@@ -60,6 +60,7 @@ class AppointmentHistoryViewModel @Inject constructor(
                                     patientId = doc.getString("patientId") ?: "",
                                     doctorId = doc.getString("doctorId") ?: "",
                                     doctorName = doc.getString("doctorName") ?: "Bác sĩ",
+                                    doctorImageUrl = doc.getString("doctorImageUrl") ?: "", // 🌟 ĐÃ BỔ SUNG TRƯỜNG NÀY ĐỂ LẤY AVATAR
                                     dateTimeUtc = doc.getString("dateTimeUtc") ?: "",
                                     reason = doc.getString("reason") ?: "",
                                     status = doc.getString("status") ?: "PENDING",
