@@ -32,7 +32,7 @@ fun CalendarSection(
     val markedDays: List<String> by viewModel.markedDays.collectAsState(initial = emptyList())
     val allAppointments: List<Appointment> by viewModel.appointments.collectAsState(initial = emptyList())
 
-    // State lưu giữ ngày đang chọn (Bao gồm cả Năm, Tháng, Ngày)
+    // State lưu giữ ngày đang chọn
     var selectedDate by remember { mutableStateOf(LocalDate.now()) }
 
     // Lọc danh sách khám của ngày được chọn
@@ -69,7 +69,6 @@ fun CalendarSection(
 
                 Spacer(Modifier.height(8.dp))
 
-                // 🌟 LẤY SỐ NGÀY ĐỘNG CỦA THÁNG (Bao gồm cả năm nhuận)
                 val daysInMonth = selectedDate.lengthOfMonth()
 
                 LazyVerticalGrid(columns = GridCells.Fixed(7), modifier = Modifier.height(260.dp)) {
@@ -99,7 +98,7 @@ fun CalendarSection(
 
         Spacer(Modifier.height(24.dp))
 
-        // --- DANH SÁCH LỊCH HẸN BÊN DƯỚI (Giữ nguyên) ---
+        // --- DANH SÁCH LỊCH HẸN BÊN DƯỚI ---
         if (appointmentsToday.isEmpty()) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -111,26 +110,48 @@ fun CalendarSection(
         } else {
             LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 items(appointmentsToday) { appt: Appointment ->
+
+                    // 🌟 KIỂM TRA TRẠNG THÁI VÀ ĐỔI MÀU XANH
+                    val isCompleted = appt.status == "COMPLETED"
+                    val bgColor = if (isCompleted) Color(0xFFDCFCE7) else Color.White // Xanh mint nhạt nếu đã khám
+                    val textColor = if (isCompleted) Color(0xFF166534) else Color(0xFF1E293B) // Chữ xanh lá thẫm
+
                     Card(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(vertical = 4.dp)
                             .clickable { onAppointmentClick(appt) },
-                        colors = CardDefaults.cardColors(containerColor = Color.White),
-                        elevation = CardDefaults.cardElevation(2.dp)
+                        colors = CardDefaults.cardColors(containerColor = bgColor),
+                        elevation = CardDefaults.cardElevation(if (isCompleted) 0.dp else 2.dp)
                     ) {
                         Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
                             Column(Modifier.weight(1f)) {
-                                Text(
-                                    text = if(appt.patientName.isEmpty()) "Bệnh nhân ẩn danh" else appt.patientName,
-                                    fontWeight = FontWeight.ExtraBold,
-                                    fontSize = 16.sp,
-                                    color = Color(0xFF1E293B)
-                                )
-                                Text("Lý do: ${appt.reason}", fontSize = 13.sp, color = Color.Gray)
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(
+                                        text = if(appt.patientName.isEmpty()) "Bệnh nhân ẩn danh" else appt.patientName,
+                                        fontWeight = FontWeight.ExtraBold,
+                                        fontSize = 16.sp,
+                                        color = textColor
+                                    )
+                                    // 🌟 HIỆN NHÃN "ĐÃ KHÁM"
+                                    if (isCompleted) {
+                                        Spacer(Modifier.width(8.dp))
+                                        Surface(color = Color(0xFF22C55E), shape = RoundedCornerShape(6.dp)) {
+                                            Text(
+                                                text = "Đã khám",
+                                                color = Color.White,
+                                                fontSize = 10.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                            )
+                                        }
+                                    }
+                                }
+                                Spacer(Modifier.height(4.dp))
+                                Text("Lý do: ${appt.reason}", fontSize = 13.sp, color = if (isCompleted) Color(0xFF166534).copy(alpha = 0.7f) else Color.Gray)
                             }
                             val time = TimeUtils.convertUtcToLocalDisplay(appt.dateTimeUtc).split(" - ")[0]
-                            Text(time, color = Color(0xFF2563EB), fontWeight = FontWeight.Bold)
+                            Text(time, color = if (isCompleted) Color(0xFF166534) else Color(0xFF2563EB), fontWeight = FontWeight.Bold)
                         }
                     }
                 }

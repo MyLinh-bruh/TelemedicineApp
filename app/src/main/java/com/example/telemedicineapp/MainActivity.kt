@@ -207,7 +207,7 @@ fun AppNavigation(
             val user = currentUser
             if (user != null) {
                 PatientMedicalRecordScreen(
-                    patientId = user.id,
+                    patientId = user.email, // 🌟 ĐÃ SỬA: Dùng Email thay vì ID
                     onBack = { navController.popBackStack() },
                     onRecordClick = { record ->
                         navController.navigate("patient_record_detail/${record.id}")
@@ -228,14 +228,13 @@ fun AppNavigation(
             val recordId = backStackEntry.arguments?.getString("recordId") ?: ""
 
             MedicalRecordScreen(
-                patientId = currentUser?.id ?: "",
+                patientId = currentUser?.email ?: "", // 🌟 ĐÃ SỬA: Dùng Email
                 patientName = currentUser?.name ?: "",
-                doctorId = "", // Bệnh nhân xem nên không cần ID bác sĩ
+                doctorId = "",
                 onBack = { navController.popBackStack() },
-                isReadOnly = true // Bật cờ chỉ xem để khóa form nhập liệu
+                isReadOnly = true
             )
         }
-
         // 10. CHI TIẾT THÔNG TIN BÁC SĨ
         composable(
             route = "doctor_detail/{doctorId}",
