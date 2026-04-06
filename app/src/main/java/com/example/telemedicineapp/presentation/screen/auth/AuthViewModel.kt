@@ -125,17 +125,19 @@ class AuthViewModel @Inject constructor(
         }.launchIn(viewModelScope)
     }
 
+    // 🌟 ĐÃ SỬA: Thay Uri? thành String để nhận chuỗi Base64
     fun registerDoctorRequest(
         name: String, email: String, pass: String,
-        specialty: String, hospitalName: String, certificateUri: Uri?
+        specialty: String, hospitalName: String, certificateImage: String
     ) {
         viewModelScope.launch {
-            if (certificateUri == null) {
+            if (certificateImage.isBlank()) {
                 _errorMessage.value = "Vui lòng chọn ảnh chứng chỉ!"
                 return@launch
             }
             _isLoading.value = true
-            val result = authRepo.registerDoctorRequest(name, email, pass, specialty, hospitalName, certificateUri)
+            // Cập nhật tham số gọi authRepo
+            val result = authRepo.registerDoctorRequest(name, email, pass, specialty, hospitalName, certificateImage)
 
             if (result == RegisterResult.SUCCESS) {
                 tokenManager.savePendingEmail(email)

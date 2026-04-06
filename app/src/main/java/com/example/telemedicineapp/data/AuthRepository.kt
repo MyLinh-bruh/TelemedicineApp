@@ -31,7 +31,6 @@ class AuthRepository @Inject constructor() {
     private val db = FirebaseFirestore.getInstance()
 
     // --- 1. ĐĂNG NHẬP (Dùng e-mail) ---
-    // --- 1. ĐĂNG NHẬP (Dùng e-mail) ---
     suspend fun login(emailInput: String, passInput: String): UserEntity? {
         return try {
             val snapshot = db.collection("Users")
@@ -69,13 +68,14 @@ class AuthRepository @Inject constructor() {
     }
 
     // --- 3. ĐĂNG KÝ BÁC SĨ ---
+    // 🌟 ĐÃ SỬA: Đổi tham số cuối thành certificateImage kiểu String
     suspend fun registerDoctorRequest(
         name: String,
         email: String,
         pass: String,
         specialty: String,
         hospitalName: String,
-        certificateUri: Uri
+        certificateImage: String
     ): RegisterResult {
         return try {
             // Kiểm tra email tồn tại
@@ -85,7 +85,7 @@ class AuthRepository @Inject constructor() {
             // Tạo Document ID mới trong Users
             val newUserDoc = db.collection("Users").document()
 
-            // 🌟 ĐÃ SỬA: Gom thông tin và TÁCH BIỆT 2 LOẠI ẢNH NGAY TẠI ĐÂY
+            // 🌟 ĐÃ SỬA: Gán chuỗi Base64 vào cả imageUrl để màn hình Admin đọc được
             val doctorData = hashMapOf(
                 "id" to newUserDoc.id,
                 "name" to name,
@@ -95,8 +95,8 @@ class AuthRepository @Inject constructor() {
                 "doctorStatus" to "PENDING",
                 "specialty" to specialty,
                 "hospitalName" to hospitalName,
-                "imageUrl" to "", // Ảnh đại diện (Avatar) lúc mới đăng ký để trống
-                "certificateUrl" to certificateUri.toString() // Lưu chứng chỉ hành nghề vào đây
+                "imageUrl" to certificateImage, // <-- Đưa vào đây để hiển thị lên UI Admin
+                "certificateUrl" to certificateImage
             )
 
             // Lưu dữ liệu
