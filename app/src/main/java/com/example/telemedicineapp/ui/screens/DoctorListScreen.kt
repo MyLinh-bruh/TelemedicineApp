@@ -18,7 +18,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
@@ -41,7 +41,7 @@ fun String.toCleanString(): String {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DoctorListScreen(
-    userEmail: String,
+    userName: String, // 🌟 ĐÃ ĐỔI THÀNH userName
     userImageUrl: String,
     onDoctorClick: (User) -> Unit,
     onLogout: () -> Unit,
@@ -59,7 +59,8 @@ fun DoctorListScreen(
     val locations = listOf("Tất cả khu vực", "Đà Nẵng", "Hà Nội", "TP. Hồ Chí Minh")
 
     // --- LOGIC XỬ LÝ AVATAR ---
-    val firstLetter = if (userEmail.isNotEmpty()) userEmail.take(1).uppercase() else "?"
+    // Vẫn lấy chữ cái đầu tiên của Tên để làm Avatar mặc định
+    val firstLetter = if (userName.isNotBlank()) userName.take(1).uppercase() else "?"
 
     val avatarData = remember(userImageUrl) {
         if (userImageUrl.isEmpty()) null
@@ -100,7 +101,7 @@ fun DoctorListScreen(
                 verticalAlignment = Alignment.Top
             ) {
                 // --- PHẦN BÊN TRÁI: AVATAR + CỤM CHỮ ---
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
                     // 🌟 Hình tròn Avatar
                     Box(
                         modifier = Modifier
@@ -132,10 +133,12 @@ fun DoctorListScreen(
                     // 🌟 Cụm chữ: Đẩy xuống một chút để cân bằng với Avatar
                     Column(modifier = Modifier.padding(top = 2.dp)) {
                         Text(
-                            text = "Xin chào, $firstLetter",
-                            fontSize = 13.sp,
+                            text = "Xin chào, $userName", // 🌟 HIỆN TÊN ĐẦY ĐỦ
+                            fontSize = 14.sp,
                             color = Color.Gray,
-                            fontWeight = FontWeight.Medium
+                            fontWeight = FontWeight.Medium,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis // Thêm dấu ... nếu tên quá dài
                         )
                         Text(
                             text = "Khám Phá",
@@ -152,7 +155,7 @@ fun DoctorListScreen(
                 }
 
                 // --- PHẦN BÊN PHẢI: MENU ---
-                Box(modifier = Modifier.padding(top = 4.dp)) {
+                Box(modifier = Modifier.padding(top = 4.dp, start = 8.dp)) {
                     var showMenu by remember { mutableStateOf(false) }
                     IconButton(
                         onClick = { showMenu = true },

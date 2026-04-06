@@ -27,6 +27,7 @@ import kotlinx.coroutines.delay
 @Composable
 fun AppointmentHistoryScreen(
     onBack: () -> Unit,
+    onViewRecordClick: (Appointment) -> Unit = {}, // 🌟 TRUYỀN THẲNG APPOINTMENT KHI CLICK
     viewModel: AppointmentHistoryViewModel = hiltViewModel()
 ) {
     val appointments by viewModel.appointments.collectAsState()
@@ -269,7 +270,8 @@ fun AppointmentHistoryScreen(
                             onTimeout = {
                                 // 🌟 NẾU HẾT 10 PHÚT CHỜ THANH TOÁN -> XÓA LUÔN LỊCH HẸN ĐÓ
                                 viewModel.deleteAppointment(appt.id)
-                            }
+                            },
+                            onViewRecordClick = { onViewRecordClick(appt) } // 🌟 GỌI CALLBACK KHI CLICK
                         )
                     }
                 }
@@ -284,7 +286,8 @@ fun AppointmentCard(
     formattedTime: String,
     onCancelClick: () -> Unit,
     onPayClick: () -> Unit,
-    onTimeout: () -> Unit
+    onTimeout: () -> Unit,
+    onViewRecordClick: () -> Unit // 🌟 THÊM THAM SỐ NÀY
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -345,6 +348,7 @@ fun AppointmentCard(
 
             Spacer(modifier = Modifier.height(16.dp))
 
+            // 🌟 CÁC NÚT BẤM DỰA VÀO TRẠNG THÁI LỊCH HẸN
             if (appointment.status == "PENDING") {
                 PendingPaymentTimer(
                     createdAt = appointment.createdAt,
@@ -366,6 +370,22 @@ fun AppointmentCard(
                     elevation = ButtonDefaults.buttonElevation(0.dp)
                 ) {
                     Text("Hủy lịch hẹn", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                }
+            } else if (appointment.status == "COMPLETED") {
+                // 🌟 NÚT XEM BỆNH ÁN HIỂN THỊ KHI ĐÃ KHÁM XONG
+                Button(
+                    onClick = onViewRecordClick,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(45.dp),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFF10B981), // Màu xanh lá
+                        contentColor = Color.White
+                    ),
+                    elevation = ButtonDefaults.buttonElevation(0.dp)
+                ) {
+                    Text("Xem hồ sơ bệnh án", fontWeight = FontWeight.Bold, fontSize = 14.sp)
                 }
             }
         }
