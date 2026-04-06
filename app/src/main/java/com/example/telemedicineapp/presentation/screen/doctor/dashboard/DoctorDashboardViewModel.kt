@@ -80,7 +80,10 @@ class DoctorDashboardViewModel @Inject constructor() : ViewModel() {
             .whereEqualTo("doctorId", doctorId)
             .addSnapshotListener { snapshot, _ ->
                 if (snapshot != null) {
+                    // 🌟 LOGIC MỚI: Lọc bỏ các lịch "PENDING", chỉ lấy "PAID" (Đã thanh toán) hoặc "COMPLETED" (Đã khám)
                     val list = snapshot.toObjects(Appointment::class.java)
+                        .filter { it.status == "PAID" || it.status == "COMPLETED" }
+
                     _appointments.value = list
                     _markedDays.value = list.map { it.dateTimeUtc.split("T")[0] }.distinct()
                 }
