@@ -1,11 +1,13 @@
 package com.example.telemedicineapp.presentation.screens.auth
 
 import android.net.Uri
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.telemedicineapp.core.TokenManager
 import com.example.telemedicineapp.data.AuthRepository
 import com.example.telemedicineapp.data.RegisterResult
+import com.example.telemedicineapp.model.DoctorStatus
 import com.example.telemedicineapp.model.Role
 import com.example.telemedicineapp.model.User
 import com.google.firebase.auth.FirebaseAuth
@@ -35,7 +37,6 @@ class AuthViewModel @Inject constructor(
     private val _errorMessage = MutableStateFlow<String?>(null)
     val errorMessage: StateFlow<String?> = _errorMessage
 
-    // Trạng thái duyệt hồ sơ bác sĩ
     private val _isWaitingApproval = MutableStateFlow(false)
     val isWaitingApproval: StateFlow<Boolean> = _isWaitingApproval
 
@@ -45,24 +46,12 @@ class AuthViewModel @Inject constructor(
     private val _isRejected = MutableStateFlow(false)
     val isRejected: StateFlow<Boolean> = _isRejected
 
-    // Thông tin người dùng hiện tại (Dùng cho Booking/Profile)
     private val _currentUser = MutableStateFlow<User?>(null)
     val currentUser: StateFlow<User?> = _currentUser
 
     init {
-        // 1. Tự động lắng nghe trạng thái đăng nhập Firebase để lấy User Profile
-        auth.addAuthStateListener { firebaseAuth ->
-            val uid = firebaseAuth.currentUser?.uid
-            if (uid != null) {
-                db.collection("Users").document(uid).addSnapshotListener { snapshot, _ ->
-                    _currentUser.value = snapshot?.toObject(User::class.java)?.copy(id = snapshot.id)
-                }
-            } else {
-                _currentUser.value = null
-            }
-        }
+        observeCurrentUser()
 
-        // 2. KHÔI PHỤC TRẠNG THÁI CHỜ DUYỆT: Nếu máy còn email đang treo
         val pendingEmail = tokenManager.getPendingEmail()
         if (!pendingEmail.isNullOrEmpty()) {
             _isWaitingApproval.value = true
@@ -70,7 +59,30 @@ class AuthViewModel @Inject constructor(
         }
     }
 
-    // --- LOGIC DUYỆT HỒ SƠ BÁC SĨ ---
+    private fun observeCurrentUser() {
+        val savedEmail = tokenManager.getEmail()
+
+        if (!savedEmail.isNullOrEmpty()) {
+            db.collection("Users").whereEqualTo("email", savedEmail)
+                .addSnapshotListener { snapshot, error ->
+                    if (error != null) {
+                        Log.e("AUTH_ERROR", "Firestore Error: ${error.message}")
+                        return@addSnapshotListener
+                    }
+                    if (snapshot != null && !snapshot.isEmpty) {
+                        val doc = snapshot.documents[0]
+                        val user = doc.toObject(User::class.java)
+                        _currentUser.value = user?.copy(id = doc.id)
+                    } else {
+                        Log.d("AUTH_DEBUG", "Không tìm thấy user với Email: $savedEmail")
+                        _currentUser.value = null
+                    }
+                }
+        } else {
+            _currentUser.value = null
+        }
+    }
+
     private fun startListeningStatus(email: String) {
         authRepo.listenToDoctorStatus(email).onEach { status ->
             when (status) {
@@ -130,39 +142,66 @@ class AuthViewModel @Inject constructor(
         }
     }
 
-    // --- LOGIC ĐĂNG NHẬP ---
     fun login(emailInput: String, passInput: String) {
         viewModelScope.launch {
             _isLoading.value = true
             _errorMessage.value = null
-            val user = authRepo.login(emailInput, passInput)
-            
-            if (user != null) {
-                if (user.role == "DOCTOR" && user.doctorStatus == "PENDING") {
-                    _errorMessage.value = "Tài khoản đang chờ duyệt!"
+            try {
+                val userEntity = authRepo.login(emailInput, passInput)
+
+                if (userEntity != null) {
+                    val role = try {
+                        Role.valueOf(userEntity.role.uppercase())
+                    } catch (e: Exception) { Role.PATIENT }
+
+                    val status = try {
+                        DoctorStatus.valueOf(userEntity.doctorStatus.uppercase())
+                    } catch (e: Exception) { DoctorStatus.NONE }
+
+                    if (role == Role.DOCTOR && status == DoctorStatus.PENDING) {
+                        _errorMessage.value = "Tài khoản đang chờ duyệt!"
+                    } else {
+                        val userModel = User(
+                            id = userEntity.id,
+                            email = userEntity.email,
+                            name = userEntity.name,
+                            role = role,
+                            doctorStatus = status,
+                            specialty = userEntity.specialty,
+                            hospitalName = userEntity.hospitalName,
+                            imageUrl = userEntity.imageUrl,
+                            certificateUrl = userEntity.certificateUrl // 🌟 ĐÃ THÊM trường chứng chỉ
+                        )
+
+                        _currentUser.value = userModel
+
+                        tokenManager.saveEmail(emailInput)
+                        tokenManager.saveSession("Token_${UUID.randomUUID()}", role.name, status.name)
+
+                        // 🌟 KÍCH HOẠT ĐỒNG BỘ REALTIME NGAY LẬP TỨC
+                        observeCurrentUser()
+
+                        _loginSuccess.value = role
+                    }
                 } else {
-                    tokenManager.saveEmail(emailInput)
-                    tokenManager.saveSession("Token_${UUID.randomUUID()}", user.role, user.doctorStatus)
-                    _loginSuccess.value = Role.valueOf(user.role.uppercase())
+                    _errorMessage.value = "Sai tài khoản hoặc mật khẩu!"
                 }
-            } else {
-                _errorMessage.value = "Sai tài khoản hoặc mật khẩu!"
+            } catch (e: Exception) {
+                _errorMessage.value = "Lỗi hệ thống: ${e.message}"
+            } finally {
+                _isLoading.value = false
             }
-            _isLoading.value = false
         }
     }
 
-    // --- LOGIC ĐĂNG KÝ BỆNH NHÂN ---
     fun register(emailInput: String, passInput: String) {
         viewModelScope.launch {
             _isLoading.value = true
             _errorMessage.value = null
             val result = authRepo.register(emailInput, passInput)
-            
+
             when (result) {
-                RegisterResult.SUCCESS -> {
-                    _errorMessage.value = "Đăng ký thành công! Mời bạn đăng nhập."
-                }
+                RegisterResult.SUCCESS -> _errorMessage.value = "Đăng ký thành công! Mời bạn đăng nhập."
                 RegisterResult.EMAIL_EXISTS -> _errorMessage.value = "Email đã tồn tại!"
                 RegisterResult.ERROR -> _errorMessage.value = "Lỗi hệ thống!"
             }
@@ -170,7 +209,6 @@ class AuthViewModel @Inject constructor(
         }
     }
 
-    // --- HÀM HỖ TRỢ ---
     fun logout() {
         auth.signOut()
         tokenManager.clearSession()
@@ -180,7 +218,7 @@ class AuthViewModel @Inject constructor(
 
     fun showError(message: String) { _errorMessage.value = message }
     fun clearError() { _errorMessage.value = null }
-    fun resetApprovalState() { 
+    fun resetApprovalState() {
         _isWaitingApproval.value = false
         _isApproved.value = false
         _isRejected.value = false

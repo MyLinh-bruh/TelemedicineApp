@@ -8,6 +8,9 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ChevronLeft
+import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -24,14 +27,15 @@ import java.time.LocalDate
 @Composable
 fun CalendarSection(
     viewModel: DoctorDashboardViewModel,
-    onAppointmentClick: (Appointment) -> Unit // GẮN SỰ KIỆN CLICK Ở ĐÂY
+    onAppointmentClick: (Appointment) -> Unit
 ) {
-    // 🌟 ĐÃ FIX LỖI "Cannot infer type": Khai báo rõ kiểu danh sách và giá trị mặc định
     val markedDays: List<String> by viewModel.markedDays.collectAsState(initial = emptyList())
     val allAppointments: List<Appointment> by viewModel.appointments.collectAsState(initial = emptyList())
 
+    // State lưu giữ ngày đang chọn (Bao gồm cả Năm, Tháng, Ngày)
     var selectedDate by remember { mutableStateOf(LocalDate.now()) }
 
+    // Lọc danh sách khám của ngày được chọn
     val appointmentsToday = allAppointments.filter { it.dateTimeUtc.startsWith(selectedDate.toString()) }
 
     Column(Modifier.fillMaxSize().padding(16.dp)) {
@@ -40,10 +44,36 @@ fun CalendarSection(
 
         Card(colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(16.dp)) {
             Column(Modifier.padding(12.dp)) {
-                Text("${selectedDate.month.name} ${selectedDate.year}", fontWeight = FontWeight.Bold, color = Color(0xFF2563EB))
+
+                // 🌟 BỘ ĐIỀU KHIỂN THÁNG/NĂM
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    IconButton(onClick = { selectedDate = selectedDate.minusMonths(1) }) {
+                        Icon(Icons.Default.ChevronLeft, contentDescription = "Tháng trước", tint = Color(0xFF2563EB))
+                    }
+
+                    Text(
+                        text = "Tháng ${selectedDate.monthValue} / ${selectedDate.year}",
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF2563EB),
+                        fontSize = 18.sp
+                    )
+
+                    IconButton(onClick = { selectedDate = selectedDate.plusMonths(1) }) {
+                        Icon(Icons.Default.ChevronRight, contentDescription = "Tháng sau", tint = Color(0xFF2563EB))
+                    }
+                }
+
                 Spacer(Modifier.height(8.dp))
+
+                // 🌟 LẤY SỐ NGÀY ĐỘNG CỦA THÁNG (Bao gồm cả năm nhuận)
+                val daysInMonth = selectedDate.lengthOfMonth()
+
                 LazyVerticalGrid(columns = GridCells.Fixed(7), modifier = Modifier.height(260.dp)) {
-                    items(31) { index ->
+                    items(daysInMonth) { index ->
                         val day = index + 1
                         val dateStr = "${selectedDate.year}-${selectedDate.monthValue.toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}"
                         val hasSchedule = markedDays.contains(dateStr)
@@ -69,6 +99,7 @@ fun CalendarSection(
 
         Spacer(Modifier.height(24.dp))
 
+        // --- DANH SÁCH LỊCH HẸN BÊN DƯỚI (Giữ nguyên) ---
         if (appointmentsToday.isEmpty()) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -84,7 +115,7 @@ fun CalendarSection(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(vertical = 4.dp)
-                            .clickable { onAppointmentClick(appt) }, // GẮN HÀNH ĐỘNG CLICK VÀO THẺ (CARD) NÀY
+                            .clickable { onAppointmentClick(appt) },
                         colors = CardDefaults.cardColors(containerColor = Color.White),
                         elevation = CardDefaults.cardElevation(2.dp)
                     ) {

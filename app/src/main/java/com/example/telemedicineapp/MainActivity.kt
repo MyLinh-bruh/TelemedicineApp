@@ -28,6 +28,7 @@ import com.example.telemedicineapp.presentation.screens.auth.LoginScreen
 import com.example.telemedicineapp.presentation.screens.auth.AuthViewModel
 import com.example.telemedicineapp.presentation.screen.doctor.DoctorViewModel
 import com.example.telemedicineapp.presentation.screen.doctor.dashboard.DoctorDashboardScreen
+import com.example.telemedicineapp.presentation.screen.ui.screens.PatientProfileScreen
 import com.example.telemedicineapp.ui.screens.*
 import com.example.telemedicineapp.ui.theme.TelemedicineAppTheme
 import com.google.firebase.messaging.FirebaseMessaging
@@ -40,7 +41,7 @@ class MainActivity : ComponentActivity() {
     @Inject
     lateinit var tokenManager: TokenManager
 
-    // --- XIN QUYỀN THÔNG BÁO (ANDROID 13+) ---
+    // --- QUẢN LÝ QUYỀN THÔNG BÁO (Android 13+) ---
     private val requestPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { isGranted: Boolean ->
@@ -54,12 +55,12 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // 1. Kiểm tra và xin quyền Notification
+        // 1. Xin quyền gửi Notification nếu máy chạy Android 13 trở lên
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             requestPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
         }
 
-        // 2. Lấy Device Token FCM
+        // 2. Lấy Device Token từ Firebase Cloud Messaging để hỗ trợ nhắc hẹn
         FirebaseMessaging.getInstance().token.addOnCompleteListener { task ->
             if (task.isSuccessful) {
                 Log.d("FCM_TOKEN", "Device Token: ${task.result}")
@@ -68,6 +69,7 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             TelemedicineAppTheme {
+                // Khởi chạy hệ thống điều hướng chính của App
                 AppNavigation(tokenManager = tokenManager)
             }
         }
@@ -82,18 +84,19 @@ fun AppNavigation(
 ) {
     val navController = rememberNavController()
 
-    // Lắng nghe dữ liệu từ ViewModels
+    // --- LẮNG NGHE DỮ LIỆU TỪ VIEWMODELS ---
     val allDoctorsForAdmin by doctorViewModel.allDoctors.collectAsState()
     val approvedDoctorsForPatient by doctorViewModel.doctors.collectAsState()
     val currentUser by authViewModel.currentUser.collectAsState()
 
-    // Xác định màn hình bắt đầu
+    // --- ĐIỀU HƯỚNG BAN ĐẦU ---
     val startDestination = remember {
+        // Nếu bác sĩ đang chờ duyệt (có email treo trong máy), vào thẳng màn hình chờ
         if (tokenManager.getPendingEmail() != null) "register_doctor_screen" else "login_screen"
     }
 
     NavHost(navController = navController, startDestination = startDestination) {
-        
+
         // 1. MÀN HÌNH ĐĂNG NHẬP
         composable("login_screen") {
             LoginScreen(
@@ -120,7 +123,7 @@ fun AppNavigation(
             )
         }
 
-        // 3. MÀN HÌNH ĐĂNG KÝ BÁC SĨ
+        // 3. MÀN HÌNH ĐĂNG KÝ/CHỜ DUYỆT BÁC SĨ
         composable("register_doctor_screen") {
             RegisterDoctorScreen(
                 onRegisterSuccess = {
@@ -140,7 +143,7 @@ fun AppNavigation(
             )
         }
 
-        // 4. MÀN HÌNH ADMIN
+        // 4. MÀN HÌNH ADMIN (Quản lý duyệt bác sĩ)
         composable("admin_dashboard") {
             AdminHomeScreen(
                 allDoctors = allDoctorsForAdmin,
@@ -150,7 +153,7 @@ fun AppNavigation(
                 onApproveClick = { doctor -> doctorViewModel.approveDoctor(doctor) },
                 onRejectClick = { doctor -> doctorViewModel.rejectDoctor(doctor) },
                 onLogout = {
-                    tokenManager.clearSession()
+                    authViewModel.logout()
                     navController.navigate("login_screen") {
                         popUpTo("admin_dashboard") { inclusive = true }
                     }
@@ -158,7 +161,7 @@ fun AppNavigation(
             )
         }
 
-        // 5. MÀN HÌNH BỆNH NHÂN (HOME)
+        // 5. MÀN HÌNH TRANG CHỦ BỆNH NHÂN (Danh sách bác sĩ)
         composable("patient_home") {
             DoctorListScreen(
                 allDoctors = approvedDoctorsForPatient,
@@ -166,7 +169,7 @@ fun AppNavigation(
                     if (doctor.id.isNotEmpty()) navController.navigate("doctor_detail/${doctor.id}")
                 },
                 onLogout = {
-                    tokenManager.clearSession()
+                    authViewModel.logout()
                     navController.navigate("login_screen") {
                         popUpTo("patient_home") { inclusive = true }
                     }
@@ -177,23 +180,24 @@ fun AppNavigation(
             )
         }
 
-        // 6. HỒ SƠ BỆNH NHÂN
+        // 6. HỒ SƠ CÁ NHÂN BỆNH NHÂN
         composable("patient_profile") {
             PatientProfileScreen(navController = navController)
         }
 
-        // 7. LỊCH SỬ HẸN
+        // 7. LỊCH SỬ KHÁM BỆNH
         composable("appointment_history") {
             AppointmentHistoryScreen(onBack = { navController.popBackStack() })
         }
 
-        // 8. CHI TIẾT BÁC SĨ
+        // 8. CHI TIẾT THÔNG TIN BÁC SĨ
         composable(
             route = "doctor_detail/{doctorId}",
             arguments = listOf(navArgument("doctorId") { type = NavType.StringType })
         ) { backStackEntry ->
             val doctorId = backStackEntry.arguments?.getString("doctorId") ?: ""
-            val selectedDoctor = allDoctorsForAdmin.find { it.id == doctorId }
+            // Ưu tiên tìm trong danh sách Admin (để xem được cả bác sĩ chưa duyệt nếu cần)
+            val selectedDoctor = allDoctorsForAdmin.find { it.id == doctorId } ?: approvedDoctorsForPatient.find { it.id == doctorId }
 
             selectedDoctor?.let { doctor ->
                 DoctorDetailScreen(
@@ -204,15 +208,16 @@ fun AppNavigation(
             }
         }
 
-        // 9. ĐẶT LỊCH HẸN
+        // 9. MÀN HÌNH ĐẶT LỊCH HẸN & THANH TOÁN
         composable(
             route = "booking_screen/{doctorId}",
             arguments = listOf(navArgument("doctorId") { type = NavType.StringType })
         ) { backStackEntry ->
             val doctorId = backStackEntry.arguments?.getString("doctorId") ?: ""
-            val doctor = allDoctorsForAdmin.find { it.id == doctorId }
+            val doctor = approvedDoctorsForPatient.find { it.id == doctorId } ?: allDoctorsForAdmin.find { it.id == doctorId }
             val user = currentUser
 
+            // CHỈ HIỆN KHI CÓ ĐỦ DỮ LIỆU, NẾU KHÔNG SẼ HIỆN LOADING (FIX LỖI TREO MÀN HÌNH)
             if (doctor != null && user != null) {
                 BookingScreen(
                     doctor = doctor,
@@ -226,25 +231,33 @@ fun AppNavigation(
             }
         }
 
-        // 10. DASHBOARD BÁC SĨ (Yến Nhân)
+        // 10. DASHBOARD DÀNH CHO BÁC SĨ (Quản lý bệnh nhân)
+        // Trong AppNavigation -> NavHost
         composable("doctor_dashboard") {
-            val doctorId = currentUser?.id ?: ""
-            DoctorDashboardScreen(
-                doctorId = doctorId,
-                onLogout = {
-                    tokenManager.clearSession()
-                    navController.navigate("login_screen") {
-                        popUpTo("doctor_dashboard") { inclusive = true }
+            val user = currentUser // Lấy giá trị hiện tại của State
+            if (user != null && user.id.isNotEmpty()) {
+                DoctorDashboardScreen(
+                    doctorId = user.id,
+                    onLogout = {
+                        authViewModel.logout()
+                        navController.navigate("login_screen") {
+                            popUpTo("doctor_dashboard") { inclusive = true }
+                        }
+                    },
+                    onPatientClick = { patientId, patientName ->
+                        val encodedName = Uri.encode(patientName)
+                        navController.navigate("medical_record_screen/$patientId/$encodedName/${user.id}")
                     }
-                },
-                onPatientClick = { patientId, patientName ->
-                    val encodedName = Uri.encode(patientName)
-                    navController.navigate("medical_record_screen/$patientId/$encodedName/$doctorId")
+                )
+            } else {
+                // Hiện loading nếu chưa có ID bác sĩ
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator()
                 }
-            )
+            }
         }
 
-        // 11. MÀN HÌNH BỆNH ÁN
+        // 11. MÀN HÌNH TẠO/XEM BỆNH ÁN
         composable(
             route = "medical_record_screen/{patientId}/{patientName}/{doctorId}",
             arguments = listOf(
