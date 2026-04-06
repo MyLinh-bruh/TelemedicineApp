@@ -6,9 +6,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ExitToApp
-import androidx.compose.material.icons.filled.Menu
-import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -20,9 +18,18 @@ import androidx.compose.ui.unit.sp
 import com.example.telemedicineapp.model.User
 import com.example.telemedicineapp.ui.components.DoctorItem
 import com.example.telemedicineapp.ui.components.DoctorShimmer
-import androidx.compose.material.icons.filled.MedicalServices
-import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.Event // Dùng Event thay cho DateRange để tránh lỗi thư viện
+import java.text.Normalizer
+
+// --- HÀM CHUẨN HÓA CHUỖI ---
+fun String.toCleanString(): String {
+    val temp = Normalizer.normalize(this, Normalizer.Form.NFD)
+    val pattern = "\\p{InCombiningDiacriticalMarks}+".toRegex()
+    return pattern.replace(temp, "")
+        .replace("đ", "d")
+        .replace("Đ", "D")
+        .trim()
+        .lowercase()
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -32,7 +39,7 @@ fun DoctorListScreen(
     allDoctors: List<User>,
     onRegisterDoctorClick: () -> Unit,
     onProfileClick: () -> Unit,
-    onHistoryClick: () -> Unit, // Callback để điều hướng lịch sử
+    onHistoryClick: () -> Unit,
 ) {
     var searchQuery by remember { mutableStateOf("") }
     var selectedSpecialty by remember { mutableStateOf("Tất cả chuyên khoa") }
@@ -41,16 +48,30 @@ fun DoctorListScreen(
     val specialties = listOf("Tất cả chuyên khoa", "Tim mạch", "Nhi khoa", "Da liễu", "Nội khoa")
     val locations = listOf("Tất cả khu vực", "Đà Nẵng", "Hà Nội", "TP. Hồ Chí Minh")
 
-    val filteredDoctors = allDoctors.filter { doctor ->
-        val matchesSearch = doctor.name.contains(searchQuery, ignoreCase = true)
-        val matchesSpecialty = selectedSpecialty == "Tất cả chuyên khoa" || doctor.specialty == selectedSpecialty
-        val matchesLocation = selectedLocation == "Tất cả khu vực" ||
-                doctor.address.lowercase().contains(selectedLocation.lowercase())
-        matchesSearch && matchesSpecialty && matchesLocation
+    // --- LOGIC LỌC TỐI ƯU ---
+    val filteredDoctors = remember(searchQuery, selectedSpecialty, selectedLocation, allDoctors) {
+        allDoctors.filter { doctor ->
+            val docNameClean = doctor.name.toCleanString()
+            val docSpecClean = doctor.specialty.toCleanString()
+            val docAddrClean = doctor.address.toCleanString()
+
+            val searchClean = searchQuery.toCleanString()
+            val specFilterClean = selectedSpecialty.toCleanString()
+            val locFilterClean = selectedLocation.toCleanString()
+
+            val matchesSearch = searchClean.isEmpty() || docNameClean.contains(searchClean)
+
+            val filterWords = specFilterClean.split(" ").filter { it.isNotBlank() && it != "tat" && it != "ca" }
+            val matchesSpecialty = selectedSpecialty == "Tất cả chuyên khoa" ||
+                    filterWords.all { word -> docSpecClean.contains(word) }
+
+            val matchesLocation = selectedLocation == "Tất cả khu vực" ||
+                    docAddrClean.contains(locFilterClean)
+            matchesSearch && matchesSpecialty && matchesLocation
+        }
     }
 
     Column(modifier = Modifier.fillMaxSize().background(Color(0xFFF8FAFC))) {
-
         // --- HEADER ---
         Column(
             modifier = Modifier
@@ -67,10 +88,8 @@ fun DoctorListScreen(
                     Text("Tìm chuyên gia y tế phù hợp", fontSize = 12.sp, color = Color.Gray)
                 }
 
-                // --- MENU CHÍNH (3 GẠCH) ---
                 Box {
                     var showMenu by remember { mutableStateOf(false) }
-
                     IconButton(
                         onClick = { showMenu = true },
                         modifier = Modifier
@@ -90,21 +109,12 @@ fun DoctorListScreen(
                             leadingIcon = { Icon(Icons.Default.Person, null, modifier = Modifier.size(20.dp)) },
                             onClick = { showMenu = false; onProfileClick() }
                         )
-
-                        // NÚT LỊCH SỬ LỊCH HẸN
                         DropdownMenuItem(
                             text = { Text("Lịch hẹn của tôi", fontSize = 14.sp) },
                             leadingIcon = { Icon(Icons.Default.Event, null, modifier = Modifier.size(20.dp)) },
-                            onClick = {
-                                showMenu = false
-                                onHistoryClick()
-                            }
+                            onClick = { showMenu = false; onHistoryClick() }
                         )
-
-
-
                         HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp), thickness = 0.5.dp)
-
                         DropdownMenuItem(
                             text = { Text("Đăng xuất", fontSize = 14.sp, color = Color.Red) },
                             leadingIcon = { Icon(Icons.Default.ExitToApp, null, tint = Color.Red, modifier = Modifier.size(20.dp)) },
@@ -116,12 +126,11 @@ fun DoctorListScreen(
 
             Spacer(modifier = Modifier.height(20.dp))
 
-            // Ô TÌM KIẾM
             OutlinedTextField(
                 value = searchQuery,
                 onValueChange = { searchQuery = it },
                 modifier = Modifier.fillMaxWidth(),
-                placeholder = { Text("Tên bác sĩ", fontSize = 14.sp) },
+                placeholder = { Text("Nhập tên bác sĩ...", fontSize = 14.sp) },
                 leadingIcon = { Icon(Icons.Default.Search, null, tint = Color.Gray) },
                 shape = RoundedCornerShape(16.dp),
                 colors = OutlinedTextFieldDefaults.colors(
@@ -135,7 +144,6 @@ fun DoctorListScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // BỘ LỌC CHUYÊN KHOA & ĐỊA ĐIỂM
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -144,22 +152,23 @@ fun DoctorListScreen(
                     label = "Chuyên khoa",
                     options = specialties,
                     selectedOption = selectedSpecialty,
-                    onOptionSelected = { selectedSpecialty = it },
+                    onOptionSelected = { selectedSpecialty = it }, // Hết đỏ ở đây
                     modifier = Modifier.weight(1f)
                 )
                 FilterDropdown(
                     label = "Địa điểm",
                     options = locations,
                     selectedOption = selectedLocation,
-                    onOptionSelected = { selectedLocation = it },
+                    onOptionSelected = { selectedLocation = it }, // Hết đỏ ở đây
                     modifier = Modifier.weight(1f)
                 )
             }
         }
 
-        // --- DANH SÁCH BÁC SĨ ---
         if (allDoctors.isEmpty()) {
-            DoctorShimmer()
+            Column(Modifier.padding(16.dp)) {
+                repeat(5) { DoctorShimmer() }
+            }
         } else {
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
@@ -174,6 +183,7 @@ fun DoctorListScreen(
     }
 }
 
+// --- HÀM PHỤ ĐỂ HIỂN THỊ DROPDOWN (Copy cái này vào là hết đỏ) ---
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun FilterDropdown(
