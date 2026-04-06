@@ -333,7 +333,7 @@ fun AppNavigation(
                 patientName = pName,
                 doctorId = dId,
                 onBack = { navController.popBackStack() },
-                isReadOnly = true
+                isReadOnly = false
             )
         }
     }
