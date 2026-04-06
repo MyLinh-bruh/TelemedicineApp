@@ -1,5 +1,8 @@
 package com.example.telemedicineapp.ui.screens
 
+import android.graphics.BitmapFactory
+import android.util.Base64
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -9,10 +12,13 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -57,6 +63,7 @@ fun DoctorDetailScreen(
 
             Column(modifier = Modifier.padding(horizontal = 24.dp)) {
 
+                // KHUNG AVATAR ĐÃ ĐƯỢC CẬP NHẬT ĐỂ HIỂN THỊ ẢNH
                 Box(
                     modifier = Modifier
                         .offset(y = (-50).dp)
@@ -72,12 +79,46 @@ fun DoctorDetailScreen(
                             .background(Color(0xFF2563EB)),
                         contentAlignment = Alignment.Center
                     ) {
-                        Text(
-                            doctor.name.split(" ").last().take(1),
-                            color = Color.White,
-                            fontSize = 40.sp,
-                            fontWeight = FontWeight.Bold
-                        )
+                        if (doctor.imageUrl.isNotBlank()) {
+                            val bitmap = remember(doctor.imageUrl) {
+                                try {
+                                    val cleanBase64 = if (doctor.imageUrl.contains(",")) {
+                                        doctor.imageUrl.substringAfter(",")
+                                    } else {
+                                        doctor.imageUrl
+                                    }
+                                    val imageBytes = Base64.decode(cleanBase64, Base64.DEFAULT)
+                                    BitmapFactory.decodeByteArray(imageBytes, 0, imageBytes.size)
+                                } catch (e: Exception) {
+                                    null
+                                }
+                            }
+
+                            if (bitmap != null) {
+                                Image(
+                                    bitmap = bitmap.asImageBitmap(),
+                                    contentDescription = "Avatar của ${doctor.name}",
+                                    modifier = Modifier.fillMaxSize(),
+                                    contentScale = ContentScale.Crop
+                                )
+                            } else {
+                                val initial = doctor.name.trim().split(" ").lastOrNull()?.take(1)?.uppercase() ?: "BS"
+                                Text(
+                                    text = initial,
+                                    color = Color.White,
+                                    fontSize = 40.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        } else {
+                            val initial = doctor.name.trim().split(" ").lastOrNull()?.take(1)?.uppercase() ?: "BS"
+                            Text(
+                                text = initial,
+                                color = Color.White,
+                                fontSize = 40.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
                     }
                 }
 
