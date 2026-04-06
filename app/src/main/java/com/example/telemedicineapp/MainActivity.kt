@@ -5,6 +5,7 @@ import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.util.Log
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
@@ -14,6 +15,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
@@ -79,10 +81,21 @@ fun AppNavigation(
     tokenManager: TokenManager
 ) {
     val navController = rememberNavController()
+    val context = LocalContext.current // Lấy context để hiển thị Toast
 
     val allDoctorsForAdmin by doctorViewModel.allDoctors.collectAsState()
     val approvedDoctorsForPatient by doctorViewModel.doctors.collectAsState()
     val currentUser by authViewModel.currentUser.collectAsState()
+    val authErrorMessage by authViewModel.errorMessage.collectAsState()
+
+    // 🌟 THÊM MỚI: Lắng nghe lỗi/thông báo từ AuthViewModel và hiển thị Toast
+    LaunchedEffect(authErrorMessage) {
+        authErrorMessage?.let { message ->
+            Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+            // Hiển thị xong thì xóa thông báo đi để tránh hiện lại khi xoay màn hình
+            authViewModel.clearError()
+        }
+    }
 
     val startDestination = remember {
         if (tokenManager.getPendingEmail() != null) "register_doctor_screen" else "login_screen"
@@ -151,6 +164,10 @@ fun AppNavigation(
                     navController.navigate("login_screen") {
                         popUpTo("admin_dashboard") { inclusive = true }
                     }
+                },
+                // 🌟 THÊM MỚI: Truyền danh sách ID bác sĩ cần xóa xuống AuthViewModel
+                onDeleteDoctorsClick = { selectedDoctorIds ->
+                    authViewModel.deleteSelectedDoctors(selectedDoctorIds)
                 }
             )
         }
@@ -171,7 +188,6 @@ fun AppNavigation(
                 onProfileClick = { navController.navigate("patient_profile") },
                 onRegisterDoctorClick = { navController.navigate("register_doctor_screen") },
                 onHistoryClick = { navController.navigate("appointment_history") },
-                // Đã truyền hàm điều hướng vào đây
                 onMedicalRecordsClick = { navController.navigate("patient_medical_records") }
             )
         }
@@ -237,7 +253,6 @@ fun AppNavigation(
         }
 
         // 11. MÀN HÌNH ĐẶT LỊCH HẸN
-        // 11. MÀN HÌNH ĐẶT LỊCH HẸN
         composable(
             route = "booking_screen/{doctorId}",
             arguments = listOf(navArgument("doctorId") { type = NavType.StringType })
@@ -248,9 +263,7 @@ fun AppNavigation(
             if (doctor != null) {
                 BookingScreen(
                     doctor = doctor,
-                    // ĐÃ XÓA: dòng "patient = user" gây lỗi
                     onBack = { navController.popBackStack() },
-                    // 🌟 ĐÃ THÊM: Truyền hành động chuyển hướng đến màn hình Hồ sơ
                     onNavigateToProfile = { navController.navigate("patient_profile") }
                 )
             } else {
