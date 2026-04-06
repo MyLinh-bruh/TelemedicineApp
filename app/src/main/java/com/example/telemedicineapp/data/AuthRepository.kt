@@ -214,4 +214,21 @@ class AuthRepository @Inject constructor() {
             ""
         }
     }
+
+    // --- 8. LẤY HỒ SƠ BỆNH ÁN CỦA BỆNH NHÂN (Đã chuyển vào trong class) ---
+    fun getMedicalRecordsForPatient(patientId: String): Flow<List<com.example.telemedicineapp.model.MedicalRecord>> = callbackFlow {
+        val listener = db.collection("MedicalRecords")
+            .whereEqualTo("patientId", patientId)
+            .addSnapshotListener { snapshot, error ->
+                if (error != null) {
+                    close(error)
+                    return@addSnapshotListener
+                }
+                if (snapshot != null) {
+                    val records = snapshot.toObjects(com.example.telemedicineapp.model.MedicalRecord::class.java)
+                    trySend(records)
+                }
+            }
+        awaitClose { listener.remove() }
+    }
 }
