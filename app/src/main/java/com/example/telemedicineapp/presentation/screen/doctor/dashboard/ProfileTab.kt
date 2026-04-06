@@ -1,6 +1,10 @@
 package com.example.telemedicineapp.presentation.screen.doctor.dashboard
 
+import android.graphics.BitmapFactory
+import android.util.Base64
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -17,12 +21,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import coil.compose.AsyncImage
 
 @Composable
 fun ProfileTab(
@@ -34,10 +39,8 @@ fun ProfileTab(
     val profile by viewModel.doctorProfile.collectAsState(initial = null)
     val records by viewModel.patientRecords.collectAsState(initial = emptyList())
 
-    // 🌟 THÊM MỚI: State lưu từ khóa tìm kiếm
     var searchQuery by remember { mutableStateOf("") }
 
-    // 🌟 THÊM MỚI: Tự động lọc danh sách dựa trên từ khóa (Tìm theo Tên hoặc Chẩn đoán)
     val filteredRecords = records.filter {
         it.patientName.contains(searchQuery, ignoreCase = true) ||
                 it.diagnosis.contains(searchQuery, ignoreCase = true)
@@ -49,12 +52,28 @@ fun ProfileTab(
             .padding(16.dp)
             .verticalScroll(rememberScrollState())
     ) {
-        Text(
-            text = "Hồ sơ & Quản lý",
-            fontSize = 24.sp,
-            fontWeight = FontWeight.Bold,
-            color = Color(0xFF1E293B)
-        )
+        // 🌟 ĐÃ THAY ĐỔI: Đưa Đăng xuất lên cạnh tiêu đề
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Text(
+                text = "Hồ sơ & Quản lý",
+                fontSize = 24.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color(0xFF1E293B)
+            )
+
+            TextButton(
+                onClick = onLogout,
+                colors = ButtonDefaults.textButtonColors(contentColor = Color.Red),
+                contentPadding = PaddingValues(0.dp)
+            ) {
+                Text("Đăng xuất", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+            }
+        }
+
         Spacer(Modifier.height(20.dp))
 
         // --- PHẦN 1: CARD THÔNG TIN BÁC SĨ ---
@@ -68,32 +87,16 @@ fun ProfileTab(
         ) {
             Column(modifier = Modifier.padding(20.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    val imageUrl = profile?.imageUrl ?: ""
-                    if (imageUrl.isNotEmpty()) {
-                        AsyncImage(
-                            model = imageUrl,
-                            contentDescription = "Avatar",
-                            modifier = Modifier
-                                .size(64.dp)
-                                .clip(CircleShape),
-                            contentScale = ContentScale.Crop
-                        )
-                    } else {
-                        Box(
-                            modifier = Modifier
-                                .size(64.dp)
-                                .clip(CircleShape)
-                                .background(Color(0xFFF1F5F9)),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Person,
-                                contentDescription = null,
-                                modifier = Modifier.size(36.dp),
-                                tint = Color.Gray
-                            )
-                        }
-                    }
+
+                    // HIỂN THỊ AVATAR BẰNG BASE64
+                    Base64Image(
+                        base64String = profile?.imageUrl ?: "",
+                        modifier = Modifier
+                            .size(64.dp)
+                            .clip(CircleShape)
+                            .background(Color(0xFFF1F5F9))
+                            .border(1.dp, Color(0xFFE2E8F0), CircleShape)
+                    )
 
                     Spacer(Modifier.width(16.dp))
 
@@ -149,7 +152,6 @@ fun ProfileTab(
 
         Spacer(Modifier.height(32.dp))
 
-        // --- PHẦN 2: DANH SÁCH BỆNH NHÂN (CÓ TÌM KIẾM) ---
         Text(
             text = "Hồ sơ bệnh nhân đã khám",
             fontSize = 18.sp,
@@ -158,28 +160,17 @@ fun ProfileTab(
         )
         Spacer(Modifier.height(12.dp))
 
-        // 🌟 THÊM MỚI: Thanh tìm kiếm (Search Bar)
         OutlinedTextField(
             value = searchQuery,
             onValueChange = { searchQuery = it },
             placeholder = { Text("Tìm theo tên hoặc chẩn đoán...", fontSize = 14.sp, color = Color.Gray) },
             leadingIcon = { Icon(Icons.Default.Search, contentDescription = "Search", tint = Color.Gray) },
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(bottom = 12.dp),
+            modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp),
             shape = RoundedCornerShape(12.dp),
-            singleLine = true,
-            colors = OutlinedTextFieldDefaults.colors(
-                focusedContainerColor = Color(0xFFF8FAFC),
-                unfocusedContainerColor = Color(0xFFF8FAFC),
-                focusedBorderColor = Color(0xFF2563EB),
-                unfocusedBorderColor = Color.Transparent
-            )
+            singleLine = true
         )
 
-        // 🌟 HIỂN THỊ DANH SÁCH SAU KHI LỌC
         if (records.isEmpty()) {
-            // Trường hợp chưa từng khám ai
             Surface(
                 modifier = Modifier.fillMaxWidth(),
                 color = Color(0xFFF8FAFC),
@@ -190,26 +181,10 @@ fun ProfileTab(
                     color = Color.Gray,
                     modifier = Modifier.padding(20.dp),
                     fontSize = 14.sp,
-                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
-                )
-            }
-        } else if (filteredRecords.isEmpty()) {
-            // Trường hợp tìm kiếm không ra kết quả
-            Surface(
-                modifier = Modifier.fillMaxWidth(),
-                color = Color(0xFFFEF2F2),
-                shape = RoundedCornerShape(12.dp)
-            ) {
-                Text(
-                    text = "Không tìm thấy hồ sơ phù hợp.",
-                    color = Color(0xFFDC2626),
-                    modifier = Modifier.padding(20.dp),
-                    fontSize = 14.sp,
-                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                    textAlign = TextAlign.Center
                 )
             }
         } else {
-            // Hiển thị các hồ sơ khớp từ khóa
             filteredRecords.forEach { record ->
                 Card(
                     modifier = Modifier
@@ -220,45 +195,49 @@ fun ProfileTab(
                     elevation = CardDefaults.cardElevation(1.dp),
                     shape = RoundedCornerShape(12.dp)
                 ) {
-                    Row(
-                        modifier = Modifier.padding(16.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
+                    Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
                         Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = record.patientName,
-                                fontWeight = FontWeight.Bold,
-                                color = Color(0xFF1E293B)
-                            )
-                            Text(
-                                text = "Chẩn đoán: ${record.diagnosis}",
-                                fontSize = 13.sp,
-                                color = Color.DarkGray,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
+                            Text(text = record.patientName, fontWeight = FontWeight.Bold, color = Color(0xFF1E293B))
+                            Text(text = "Chẩn đoán: ${record.diagnosis}", fontSize = 13.sp, color = Color.DarkGray, maxLines = 1, overflow = TextOverflow.Ellipsis)
                         }
-                        Text(
-                            text = record.lastUpdated.split(" ")[0],
-                            fontSize = 11.sp,
-                            color = Color.Gray
-                        )
+                        Text(text = record.lastUpdated.split(" ")[0], fontSize = 11.sp, color = Color.Gray)
                     }
                 }
             }
         }
 
-        Spacer(Modifier.height(32.dp))
-
-        // --- PHẦN 3: NÚT ĐĂNG XUẤT ---
-        TextButton(
-            onClick = onLogout,
-            modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.textButtonColors(contentColor = Color.Red)
-        ) {
-            Text("Đăng xuất", fontWeight = FontWeight.Bold, fontSize = 16.sp)
-        }
-
+        // 🌟 ĐÃ XÓA NÚT ĐĂNG XUẤT Ở ĐÂY VÌ ĐÃ CHUYỂN LÊN ĐẦU
         Spacer(Modifier.height(60.dp))
+    }
+}
+
+@Composable
+fun Base64Image(base64String: String, modifier: Modifier = Modifier) {
+    if (base64String.isBlank()) {
+        Box(modifier = modifier, contentAlignment = Alignment.Center) {
+            Icon(Icons.Default.Person, null, modifier = Modifier.size(36.dp), tint = Color.Gray)
+        }
+        return
+    }
+
+    val decodedBitmap = remember(base64String) {
+        try {
+            val cleanBase64 = if (base64String.contains(",")) base64String.substringAfter(",") else base64String
+            val imageBytes = Base64.decode(cleanBase64, Base64.DEFAULT)
+            BitmapFactory.decodeByteArray(imageBytes, 0, imageBytes.size)
+        } catch (e: Exception) { null }
+    }
+
+    if (decodedBitmap != null) {
+        Image(
+            bitmap = decodedBitmap.asImageBitmap(),
+            contentDescription = "Avatar",
+            modifier = modifier,
+            contentScale = ContentScale.Crop
+        )
+    } else {
+        Box(modifier = modifier, contentAlignment = Alignment.Center) {
+            Icon(Icons.Default.Person, null, modifier = Modifier.size(36.dp), tint = Color.Gray)
+        }
     }
 }

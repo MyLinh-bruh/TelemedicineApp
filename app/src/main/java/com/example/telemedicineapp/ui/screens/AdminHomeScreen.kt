@@ -1,5 +1,8 @@
 package com.example.telemedicineapp.ui.screens
 
+import android.graphics.BitmapFactory
+import android.util.Base64
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -16,11 +19,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import coil.compose.AsyncImage // Đảm bảo đã có thư viện Coil
 import com.example.telemedicineapp.model.User
 import com.example.telemedicineapp.ui.components.DoctorItem
 
@@ -37,7 +40,6 @@ fun AdminHomeScreen(
     var selectedRequest by remember { mutableStateOf<User?>(null) }
     var searchQuery by remember { mutableStateOf("") }
 
-    // SỬA LỖI Ở ĐÂY: Thêm .toString() để ép kiểu về chuỗi trước khi so sánh
     val approvedDoctors = allDoctors.filter { it.doctorStatus.toString() == "APPROVED" }
     val pendingRequests = allDoctors.filter { it.doctorStatus.toString() == "PENDING" }
 
@@ -116,7 +118,7 @@ fun AdminHomeScreen(
                         onApproveClick(req)
                         selectedRequest = null
                     },
-                    onReject = { // 🌟 TRUYỀN SỰ KIỆN TỪ CHỐI VÀO ĐÂY
+                    onReject = {
                         onRejectClick(req)
                         selectedRequest = null
                     }
@@ -147,10 +149,8 @@ fun ApprovalListView(requests: List<User>, onItemClick: (User) -> Unit) {
                     }
                     Spacer(Modifier.width(12.dp))
                     Column(Modifier.weight(1f)) {
-                        // ĐỒNG BỘ: Hiện tên thật
                         val displayName = req.name.ifEmpty { req.email.split("@").firstOrNull() ?: "Bác sĩ" }
                         Text(displayName, fontWeight = FontWeight.Bold)
-                        // ĐỒNG BỘ: Hiện chuyên khoa thật (Thần Kinh,...)
                         Text(req.specialty.ifEmpty { "Chưa cập nhật chuyên khoa" }, fontSize = 12.sp, color = Color.Gray)
                     }
                     Icon(Icons.Default.KeyboardArrowRight, null, tint = Color.LightGray)
@@ -177,7 +177,6 @@ fun AdminDetailOverlay(req: User, onDismiss: () -> Unit, onApprove: () -> Unit, 
 
                     Spacer(Modifier.height(16.dp))
 
-                    // ĐỒNG BỘ THÔNG TIN TỪ MODEL USER
                     val displayName = req.name.ifEmpty { req.email.split("@").firstOrNull() ?: "Bác sĩ" }
                     DetailItem("Họ tên", displayName)
                     DetailItem("Chuyên khoa", req.specialty.ifEmpty { "Chưa có thông tin" })
@@ -189,16 +188,13 @@ fun AdminDetailOverlay(req: User, onDismiss: () -> Unit, onApprove: () -> Unit, 
                     Text("Ảnh chứng chỉ hành nghề:", fontSize = 12.sp, color = Color.Gray, fontWeight = FontWeight.Medium)
                     Spacer(Modifier.height(8.dp))
 
-                    // ĐỒNG BỘ: Hiện ảnh "Con mèo" (imageUrl) từ Firebase
-                    AsyncImage(
-                        model = req.imageUrl,
-                        contentDescription = "Chứng chỉ",
+                    Base64Image(
+                        base64String = req.imageUrl,
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(200.dp)
                             .clip(RoundedCornerShape(12.dp))
-                            .border(1.dp, Color.LightGray, RoundedCornerShape(12.dp)),
-                        contentScale = ContentScale.Crop
+                            .border(1.dp, Color.LightGray, RoundedCornerShape(12.dp))
                     )
 
                     Spacer(Modifier.height(24.dp))
@@ -206,15 +202,15 @@ fun AdminDetailOverlay(req: User, onDismiss: () -> Unit, onApprove: () -> Unit, 
                     Button(
                         onClick = onApprove,
                         modifier = Modifier.fillMaxWidth().height(50.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50)), // Màu xanh lá phê duyệt
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50)),
                         shape = RoundedCornerShape(12.dp)
                     ) {
                         Text("PHÊ DUYỆT NGAY", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = Color.White)
                     }
                     Button(
-                        onClick = onReject, // Gọi hàm xóa
+                        onClick = onReject,
                         modifier = Modifier.fillMaxWidth(),
-                        colors = ButtonDefaults.buttonColors(containerColor = Color.Red), // Màu đỏ
+                        colors = ButtonDefaults.buttonColors(containerColor = Color.Red),
                         shape = RoundedCornerShape(12.dp)
                     ) {
                         Text("TỪ CHỐI & XÓA ĐƠN")
@@ -233,4 +229,46 @@ fun DetailItem(label: String, value: String) {
         HorizontalDivider(modifier = Modifier.padding(top = 4.dp), thickness = 0.5.dp, color = Color.LightGray)
     }
 }
-// Linh đã hoàn thiện chức năng UI Admin và duyệt đơn ở đây
+
+// 🌟 HÀM MỚI: Dịch ngược văn bản khổng lồ thành Hình ảnh
+// 🌟 HÀM MỚI: Dịch ngược văn bản khổng lồ thành Hình ảnh
+// 🌟 HÀM MỚI (CHUẨN COMPOSE): Dịch ngược văn bản khổng lồ thành Hình ảnh
+@Composable
+fun Base64Image(base64String: String, modifier: Modifier = Modifier) {
+    // Nếu chuỗi rỗng thì vẽ luôn cái hộp xám, không cần giải mã
+    if (base64String.isBlank()) {
+        Box(modifier = modifier.background(Color.LightGray), contentAlignment = Alignment.Center) {
+            Text("Không có ảnh", color = Color.DarkGray)
+        }
+        return
+    }
+
+    // BƯỚC 1: Dịch ngược ảnh một cách âm thầm (không đụng tới UI ở đây)
+    val decodedBitmap = remember(base64String) {
+        try {
+            val cleanBase64 = if (base64String.contains(",")) {
+                base64String.substringAfter(",")
+            } else {
+                base64String
+            }
+            val imageBytes = Base64.decode(cleanBase64, Base64.DEFAULT)
+            BitmapFactory.decodeByteArray(imageBytes, 0, imageBytes.size)
+        } catch (e: Exception) {
+            null // Nếu lỗi thì trả về null
+        }
+    }
+
+    // BƯỚC 2: Vẽ UI dựa trên kết quả dịch được
+    if (decodedBitmap != null) {
+        Image(
+            bitmap = decodedBitmap.asImageBitmap(),
+            contentDescription = "Ảnh chứng chỉ",
+            modifier = modifier,
+            contentScale = ContentScale.Crop
+        )
+    } else {
+        Box(modifier = modifier.background(Color(0xFFFFEBEE)), contentAlignment = Alignment.Center) {
+            Text("Lỗi định dạng ảnh", color = Color.Red)
+        }
+    }
+}

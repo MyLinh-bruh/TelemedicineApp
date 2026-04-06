@@ -1,10 +1,13 @@
 package com.example.telemedicineapp.presentation.screen.auth
 
+import android.content.Context
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.net.Uri
+import android.util.Base64
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -19,6 +22,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextAlign
@@ -27,6 +31,26 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import coil.compose.AsyncImage
 import com.example.telemedicineapp.presentation.screens.auth.AuthViewModel
+import java.io.ByteArrayOutputStream
+
+// 🌟 Hàm chuyển đổi URI thành chuỗi Base64
+fun uriToBase64(context: Context, uri: Uri): String? {
+    return try {
+        val inputStream = context.contentResolver.openInputStream(uri)
+        val bitmap = BitmapFactory.decodeStream(inputStream)
+
+        // Nén ảnh xuống 20% chất lượng để không vượt quá giới hạn 1MB của Firestore
+        val outputStream = ByteArrayOutputStream()
+        bitmap.compress(Bitmap.CompressFormat.JPEG, 20, outputStream)
+        val byteArray = outputStream.toByteArray()
+
+        // Thêm tiền tố này để thư viện AsyncImage (Coil) tự động hiểu đây là ảnh Base64
+        "data:image/jpeg;base64," + Base64.encodeToString(byteArray, Base64.DEFAULT)
+    } catch (e: Exception) {
+        e.printStackTrace()
+        null
+    }
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -35,7 +59,10 @@ fun RegisterDoctorScreen(
     onBackToLogin: () -> Unit,
     viewModel: AuthViewModel = hiltViewModel()
 ) {
-    // --- CÁC BIẾN TRẠNG THÁI (Đã thêm 'name' để đồng bộ với Admin) ---
+    // Lấy context để dùng cho hàm uriToBase64
+    val context = LocalContext.current
+
+    // --- CÁC BIẾN TRẠNG THÁI ---
     var name by remember { mutableStateOf("") }
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
@@ -169,13 +196,12 @@ fun RegisterDoctorScreen(
                 text = "Hồ sơ Chuyên môn",
                 fontSize = 20.sp,
                 fontWeight = FontWeight.Bold,
-                color = Color(0xFF3F51B5), // Màu hồng theme bạn thích
+                color = Color(0xFF3F51B5),
                 modifier = Modifier.align(Alignment.Start)
             )
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            // Ô NHẬP HỌ TÊN (Cực kỳ quan trọng để đồng bộ với Admin)
             OutlinedTextField(
                 value = name,
                 onValueChange = { name = it },
@@ -205,7 +231,7 @@ fun RegisterDoctorScreen(
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            // --- PHẦN CHỌN ẢNH CHỨNG CHỈ (ẢNH CON MÈO) ---
+            // --- PHẦN CHỌN ẢNH CHỨNG CHỈ ---
             Column(modifier = Modifier.fillMaxWidth(), horizontalAlignment = Alignment.Start) {
                 Text(text = "Ảnh chứng chỉ hành nghề (Bắt buộc)", fontSize = 14.sp, color = Color.Gray)
                 Spacer(modifier = Modifier.height(8.dp))
@@ -240,7 +266,7 @@ fun RegisterDoctorScreen(
 
             Spacer(modifier = Modifier.height(32.dp))
 
-            // NÚT GỬI ĐĂNG KÝ
+            // 🌟 NÚT GỬI ĐĂNG KÝ MỚI
             Button(
                 onClick = {
                     if (name.isEmpty() || email.isEmpty() || password.isEmpty() || specialty.isEmpty() || hospitalName.isEmpty()) {
@@ -250,8 +276,15 @@ fun RegisterDoctorScreen(
                     } else if (certificateUri == null) {
                         viewModel.showError("Vui lòng tải lên ảnh chứng chỉ hành nghề!")
                     } else {
-                        // Gọi hàm đăng ký và truyền đầy đủ 6 tham số
-                        viewModel.registerDoctorRequest(name, email, password, specialty, hospitalName, certificateUri)
+                        // Chuyển Uri thành chuỗi Base64
+                        val base64ImageString = uriToBase64(context, certificateUri!!)
+
+                        if (base64ImageString != null) {
+                            // Gửi chuỗi text này vào ViewModel
+                            viewModel.registerDoctorRequest(name, email, password, specialty, hospitalName, base64ImageString)
+                        } else {
+                            viewModel.showError("Lỗi xử lý ảnh, vui lòng chọn ảnh khác!")
+                        }
                     }
                 },
                 modifier = Modifier.fillMaxWidth().height(55.dp),
