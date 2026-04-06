@@ -143,16 +143,7 @@ fun DoctorDetailScreen(
 
                 }
 
-                Row(
-                    modifier = Modifier
-                        .padding(vertical = 24.dp)
-                        .fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    StatBox("Bệnh nhân", "1.2K+", Modifier.weight(1f))
-                    StatBox("Kinh nghiệm", "10 Năm", Modifier.weight(1f))
-                    StatBox("Phí khám", "300K", Modifier.weight(1f), Color(0xFF2563EB))
-                }
+
 
                 Text("🏥 ${doctor.hospitalName}", fontWeight = FontWeight.Bold, fontSize = 14.sp)
                 Text(doctor.address, color = Color.Gray, fontSize = 12.sp)

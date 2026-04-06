@@ -55,8 +55,70 @@ fun DoctorListScreen(
     var selectedSpecialty by remember { mutableStateOf("Tất cả chuyên khoa") }
     var selectedLocation by remember { mutableStateOf("Tất cả khu vực") }
 
-    val specialties = listOf("Tất cả chuyên khoa", "Tim mạch", "Nhi khoa", "Da liễu", "Nội khoa")
-    val locations = listOf("Tất cả khu vực", "Đà Nẵng", "Hà Nội", "TP. Hồ Chí Minh")
+    val specialties = listOf(
+        "Tất cả chuyên khoa",
+        "Nội khoa",
+        "Ngoại khoa",
+        "Nhi khoa",
+        "Sản phụ khoa",
+        "Tim mạch",
+        "Da liễu",
+        "Tai Mũi Họng",
+        "Răng Hàm Mặt",
+        "Mắt",
+        "Cơ Xương Khớp",
+        "Thần kinh",
+        "Tiêu hóa - Gan mật",
+        "Hô hấp",
+        "Thận - Tiết niệu",
+        "Nội tiết",
+        "Dị ứng - Miễn dịch",
+        "Huyết học",
+        "Truyền nhiễm",
+        "Ung bướu",
+        "Chấn thương chỉnh hình",
+        "Phục hồi chức năng",
+        "Tâm thần",
+        "Dinh dưỡng",
+        "Y học cổ truyền"
+    )
+    val locations = listOf(
+        "Tất cả khu vực",
+        "Hà Nội",
+        "TP. Hồ Chí Minh",
+        "Hải Phòng",
+        "Đà Nẵng",
+        "Cần Thơ",
+        "Huế",
+        "Tuyên Quang",
+        "Lào Cai",
+        "Thái Nguyên",
+        "Phú Thọ",
+        "Bắc Ninh",
+        "Hưng Yên",
+        "Ninh Bình",
+        "Quảng Trị",
+        "Quảng Ngãi",
+        "Gia Lai",
+        "Khánh Hòa",
+        "Lâm Đồng",
+        "Đắk Lắk",
+        "Đồng Nai",
+        "Tây Ninh",
+        "Vĩnh Long",
+        "Đồng Tháp",
+        "Cà Mau",
+        "An Giang",
+        "Lai Châu",
+        "Điện Biên",
+        "Sơn La",
+        "Lạng Sơn",
+        "Quảng Ninh",
+        "Thanh Hóa",
+        "Nghệ An",
+        "Hà Tĩnh",
+        "Cao Bằng"
+    )
 
     // --- LOGIC XỬ LÝ AVATAR ---
     // Vẫn lấy chữ cái đầu tiên của Tên để làm Avatar mặc định
